@@ -1,0 +1,261 @@
+{
+ "actions": [],
+ "autoname": "format:LPAY-{YYYY}-{#####}",
+ "naming_rule": "Expression",
+ "creation": "2026-09-23 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "token",
+  "payment_gateway",
+  "reference_doctype",
+  "reference_docname",
+  "column_break_amount",
+  "amount",
+  "currency",
+  "status",
+  "section_break_payer",
+  "title",
+  "description",
+  "column_break_payer",
+  "payer_name",
+  "payer_email",
+  "redirect_to",
+  "section_break_outcome",
+  "paid_amount",
+  "provider_transaction_id",
+  "paid_on",
+  "column_break_authorization",
+  "authorization",
+  "authorization_tries",
+  "authorization_error",
+  "success_redirect",
+  "section_break_attempts",
+  "attempts",
+  "section_break_request",
+  "request_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "token",
+   "fieldtype": "Data",
+   "label": "Token",
+   "unique": 1,
+   "read_only": 1,
+   "no_copy": 1,
+   "set_only_once": 1,
+   "length": 32,
+   "description": "Guest access key. Generated on insert."
+  },
+  {
+   "fieldname": "payment_gateway",
+   "fieldtype": "Link",
+   "label": "Payment Gateway",
+   "options": "Payment Gateway",
+   "reqd": 1,
+   "in_list_view": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "reference_doctype",
+   "fieldtype": "Link",
+   "label": "Reference DocType",
+   "options": "DocType",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "reference_docname",
+   "fieldtype": "Dynamic Link",
+   "label": "Reference Name",
+   "options": "reference_doctype",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_amount",
+   "fieldtype": "Column Break",
+   "label": "Column Break Amount"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount",
+   "options": "currency",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Open\nPaid\nVoid",
+   "default": "Open",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_break_payer",
+   "fieldtype": "Section Break",
+   "label": "Payer"
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_payer",
+   "fieldtype": "Column Break",
+   "label": "Column Break Payer"
+  },
+  {
+   "fieldname": "payer_name",
+   "fieldtype": "Data",
+   "label": "Payer Name"
+  },
+  {
+   "fieldname": "payer_email",
+   "fieldtype": "Data",
+   "label": "Payer Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "redirect_to",
+   "fieldtype": "Small Text",
+   "label": "Redirect To"
+  },
+  {
+   "fieldname": "section_break_outcome",
+   "fieldtype": "Section Break",
+   "label": "Outcome"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount",
+   "options": "currency",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "provider_transaction_id",
+   "fieldtype": "Data",
+   "label": "Provider Transaction ID",
+   "read_only": 1,
+   "no_copy": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "paid_on",
+   "fieldtype": "Datetime",
+   "label": "Paid On",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "column_break_authorization",
+   "fieldtype": "Column Break",
+   "label": "Column Break Authorization"
+  },
+  {
+   "fieldname": "authorization",
+   "fieldtype": "Select",
+   "label": "Authorization",
+   "options": "\nPending\nDone\nFailed",
+   "read_only": 1,
+   "no_copy": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "authorization_tries",
+   "fieldtype": "Int",
+   "label": "Authorization Tries",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "authorization_error",
+   "fieldtype": "Small Text",
+   "label": "Authorization Error",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "success_redirect",
+   "fieldtype": "Small Text",
+   "label": "Success Redirect",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "URL returned by on_payment_authorized."
+  },
+  {
+   "fieldname": "section_break_attempts",
+   "fieldtype": "Section Break",
+   "label": "Attempts"
+  },
+  {
+   "fieldname": "attempts",
+   "fieldtype": "Table",
+   "label": "Attempts",
+   "options": "Local Payment Attempt",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "section_break_request",
+   "fieldtype": "Section Break",
+   "label": "Request Data",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "request_data",
+   "fieldtype": "Code",
+   "label": "Request Data",
+   "options": "JSON",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Arguments received by get_payment_url."
+  }
+ ],
+ "in_create": 1,
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-23 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Local Payments",
+ "name": "Local Payment",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Local Payments Manager"
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "System Manager"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title"
+}
