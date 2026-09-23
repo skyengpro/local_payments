@@ -90,9 +90,9 @@ TODO: fill with the repo's real commands, then delete this line.
 
 ```bash
 bench --site <dev-site> run-tests --app local_payments   # site tests (stable Frappe CLI)
-# pure tests:        TODO
+# pure tests:        python -m unittest local_payments.test_lifecycle   # no site needed
 # lint / format:     TODO
-# CI import guard:   TODO (fails if providers/ or lifecycle.py imports frappe)
+# CI import guard:   python scripts/check_pure_core.py   # fails if providers/ or lifecycle.py imports frappe
 ```
 
 Never run `bench migrate`, `restore`, `reinstall` or `drop-site` against a non-dev site.
