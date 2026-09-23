@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "additionalDirectories": [
+      "../frappe-bench/apps/frappe",
+      "../frappe-bench/apps/erpnext",
+      "../frappe-bench/apps/payments"
+    ],
+    "allow": [
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(gh pr view *)",
+      "Bash(gh issue view *)",
+      "Bash(bench --site * run-tests *)",
+      "WebFetch(domain:docs.frappe.io)",
+      "WebFetch(domain:raw.githubusercontent.com)"
+    ],
+    "ask": [
+      "Bash(bench * migrate*)",
+      "Bash(bench * restore*)",
+      "Bash(bench * reinstall*)",
+      "Bash(bench * drop-site*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/site_config.json)",
+      "Read(**/common_site_config.json)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(git push --force*)",
+      "Bash(rm -rf *)"
+    ]
+  },
+  "enabledMcpjsonServers": ["context7"]
+}

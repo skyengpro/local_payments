@@ -8,7 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["payments"]
 
 # Each item in the list will be shown as an app in the apps page
 # add_to_apps_screen = [
@@ -255,3 +255,8 @@ app_license = "mit"
 # ------------
 # List of apps whose translatable strings should be excluded from this app's translations.
 # ignore_translatable_strings_from = []
+
+# Fixtures
+# --------
+# Role only: shipped as a fixture so it exists on every site (never hand-configured).
+fixtures = [{"dt": "Role", "filters": [["name", "=", "Local Payments Manager"]]}]

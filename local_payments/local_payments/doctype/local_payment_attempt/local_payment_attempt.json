@@ -1,0 +1,161 @@
+{
+ "actions": [],
+ "creation": "2026-09-23 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "attempt_id",
+  "status",
+  "provider_status",
+  "payer_msisdn",
+  "provider_transaction_id",
+  "confirmed_amount",
+  "confirmed_currency",
+  "duplicate",
+  "amount_mismatch",
+  "column_break_dates",
+  "started_on",
+  "expires_on",
+  "last_checked_on",
+  "next_check_on",
+  "check_count",
+  "integration_request",
+  "section_break_provider",
+  "provider_data"
+ ],
+ "fields": [
+  {
+   "fieldname": "attempt_id",
+   "fieldtype": "Data",
+   "label": "Attempt ID",
+   "unique": 1,
+   "search_index": 1,
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Initiated\nPending\nSucceeded\nFailed\nExpired\nUnresolved\nError",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider_status",
+   "fieldtype": "Data",
+   "label": "Provider Status",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payer_msisdn",
+   "fieldtype": "Data",
+   "label": "Payer MSISDN",
+   "in_list_view": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "provider_transaction_id",
+   "fieldtype": "Data",
+   "label": "Provider Transaction ID",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmed_amount",
+   "fieldtype": "Currency",
+   "label": "Confirmed Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "confirmed_currency",
+   "fieldtype": "Data",
+   "label": "Confirmed Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "duplicate",
+   "fieldtype": "Check",
+   "label": "Duplicate",
+   "description": "Success on an already-paid session.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amount_mismatch",
+   "fieldtype": "Check",
+   "label": "Amount Mismatch",
+   "description": "Amount or currency does not match the session.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break",
+   "label": "Column Break Dates"
+  },
+  {
+   "fieldname": "started_on",
+   "fieldtype": "Datetime",
+   "label": "Started On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "expires_on",
+   "fieldtype": "Datetime",
+   "label": "Expires On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_checked_on",
+   "fieldtype": "Datetime",
+   "label": "Last Checked On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "next_check_on",
+   "fieldtype": "Datetime",
+   "label": "Next Check On",
+   "search_index": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "check_count",
+   "fieldtype": "Int",
+   "label": "Check Count",
+   "read_only": 1
+  },
+  {
+   "fieldname": "integration_request",
+   "fieldtype": "Data",
+   "label": "Integration Request",
+   "description": "Name only, no link: Integration Request is purged after 90 days.",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_provider",
+   "fieldtype": "Section Break",
+   "label": "Provider Data",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "provider_data",
+   "fieldtype": "Code",
+   "label": "Provider Data",
+   "options": "JSON",
+   "description": "Provider-specific fields, written by providers/ only.",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-23 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Local Payments",
+ "name": "Local Payment Attempt",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
