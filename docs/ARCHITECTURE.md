@@ -21,7 +21,7 @@ Provider-specific detail is found in
 | MTN MoMo Collection, RequestToPay operation: request sent to the payer's phone | Orange Money Web Payment (redirect, OTP)         |
 | Orange Money Local/USSD: same principle, request sent to the payer's phone     | Refunds, disbursements, recurring payments       |
 | Automatic finalization of ERPNext Payment Requests                             | Provider choice by the payer on the payment page |
-| Frappe v15 and v16,                                                            |                                                  |
+| Frappe v16                                                                    |                                                  |
 
 The data model, the lifecycle, and the payment page are common to both
 providers. What remains specific to Orange Money — a settings doctype and
