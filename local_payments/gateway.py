@@ -50,18 +50,16 @@ class LocalPaymentGateway:
 		return f"{self.provider_name}-{self.gateway_name}"
 
 	def on_update(self):
-		create_payment_gateway(
-			self.payment_gateway_name, settings=self.doctype, controller=self.gateway_name
-		)
+		create_payment_gateway(self.payment_gateway_name, settings=self.doctype, controller=self.gateway_name)
 		if cint(self.enabled):
 			call_hook_method("payment_gateway_enabled", gateway=self.payment_gateway_name)
 
 	def validate_transaction_currency(self, currency):
 		if currency != self.currency:
 			frappe.throw(
-				_("This payment method only accepts {0}, not {1}. Please select another payment method.").format(
-					self.currency, currency
-				)
+				_(
+					"This payment method only accepts {0}, not {1}. Please select another payment method."
+				).format(self.currency, currency)
 			)
 
 	def get_payment_url(self, **kwargs):
