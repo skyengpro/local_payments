@@ -1,4 +1,4 @@
-exclude: 'node_modules|.git'
+exclude: '(^|/)node_modules/|(^|/)\.git/'
 default_stages: [pre-commit]
 fail_fast: false
 
@@ -16,6 +16,15 @@ repos:
       - id: check-toml
       - id: check-yaml
       - id: debug-statements
+
+  # Added this session. Blocks a commit that stages a secret
+  # (`gitleaks protect --staged` against .gitleaks.toml at repo root).
+  # See .github/workflows/linter.yml, job `gitleaks`, for the CI-side
+  # full-history scan that backs this up.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.10

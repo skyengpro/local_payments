@@ -1,0 +1,51 @@
+title = "local_payments gitleaks config"
+
+# Start from gitleaks' default ruleset (generic API keys, AWS, private keys,
+# etc.) and add app-specific rules on top.
+[extend]
+useDefault = true
+
+# MTN MoMo Settings / Orange Money Settings hold these as Password fields
+# (encrypted at rest by the site's encryption_key — see ARCHITECTURE.md
+# "Sécurité et permissions"). Catch them if they ever leak into code,
+# fixtures, .env files or notebooks instead.
+
+[[rules]]
+id = "mtn-momo-subscription-key"
+description = "MTN MoMo Ocp-Apim-Subscription-Key"
+regex = '''(?i)ocp-apim-subscription-key["'\s:=]+[0-9a-f]{32}'''
+tags = ["mtn", "momo", "api-key"]
+
+[[rules]]
+id = "mtn-momo-api-user-key"
+description = "MTN MoMo API user key (UUID-shaped, near api_key/api_user context)"
+regex = '''(?i)(mtn[_-]?momo[_-]?)?api[_-]?key["'\s:=]+[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'''
+tags = ["mtn", "momo", "api-key"]
+
+[[rules]]
+id = "orange-money-client-secret"
+description = "Orange Money Developer client_secret"
+regex = '''(?i)client_secret["'\s:=]+[A-Za-z0-9_\-]{20,}'''
+tags = ["orange", "api-key"]
+
+[[rules]]
+id = "orange-money-merchant-key"
+description = "Orange Money merchant_key"
+regex = '''(?i)merchant_key["'\s:=]+[A-Za-z0-9_\-]{16,}'''
+tags = ["orange", "api-key"]
+
+# Sandbox/test values and documentation are expected to contain
+# provider-shaped strings that are not real secrets (e.g. this repo's own
+# gateway docs, or unit-test fixtures using sandbox credentials).
+[allowlist]
+description = "Docs and test fixtures — not production credentials"
+paths = [
+  '''(?i)^docs/''',
+  '''(?i)\.md$''',
+  '''(?i)/?tests?/fixtures/.*''',
+]
+regexes = [
+  '''(?i)sandbox''',
+  '''(?i)test[_-]?frappe''',
+  '''(?i)example\.com''',
+]
