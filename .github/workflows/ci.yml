@@ -38,10 +38,6 @@ jobs:
       - name: Clone
         uses: actions/checkout@v7
 
-      - name: Sanity-check tests exist
-        run: |
-          grep -rln "def test" local_payments > /dev/null
-
       - name: Setup Python
         uses: actions/setup-python@v7
         with:

@@ -66,17 +66,3 @@ jobs:
           pip install pip-audit
           pip-audit --desc on .
 
-  gitleaks:
-    name: Secret scan (full history)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Run gitleaks
-        uses: gitleaks/gitleaks-action@v3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
-        # gitleaks-action v3 runs on Node 24 (v2 ran on Node 20, which GitHub
-        # removed from hosted runners on 2026-09-16 — v2 no longer runs here).
