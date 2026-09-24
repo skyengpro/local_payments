@@ -15,6 +15,8 @@ from frappe import _
 from frappe.utils import call_hook_method, cint, flt, get_url
 from payments.utils import create_payment_gateway
 
+from local_payments.lifecycle import ProviderResult
+
 CHECKOUT_PAGE = "local_payment_checkout"
 
 # ISO 4217 currencies with no minor unit. Frappe's Currency records can't be used for this:
@@ -53,6 +55,10 @@ class LocalPaymentGateway:
 		create_payment_gateway(self.payment_gateway_name, settings=self.doctype, controller=self.gateway_name)
 		if cint(self.enabled):
 			call_hook_method("payment_gateway_enabled", gateway=self.payment_gateway_name)
+
+	def check_status(self, attempt_id: str, provider_data: dict) -> ProviderResult:
+		"""Ask the provider about one attempt. Each provider's Settings doctype implements this."""
+		raise NotImplementedError
 
 	def validate_transaction_currency(self, currency):
 		if currency != self.currency:
