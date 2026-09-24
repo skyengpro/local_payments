@@ -143,14 +143,20 @@ def resolve(
 	session_currency: str | None,
 	attempt_status: str,
 	result: ProviderResult,
+	past_deadline: bool = False,
 ) -> Resolution:
 	"""Decide what a provider result does to an attempt and its session.
 
-	Raises IllegalTransition if the attempt cannot move to the reported status. A result that repeats
-	the current non-final status (still Pending) changes nothing.
+	`past_deadline` says the attempt's local deadline has passed. A Pending answer then moves an
+	Initiated or Pending attempt to Unresolved. Raises IllegalTransition if the attempt cannot move to
+	the reported status. A Pending answer that changes nothing (still Pending, or still Unresolved) is
+	a no-op.
 	"""
-	if result.status == attempt_status and not is_final_attempt_status(attempt_status):
-		return Resolution(attempt_status=attempt_status, session_status=session_status)
+	if result.status == PENDING:
+		if attempt_status in (INITIATED, PENDING) and past_deadline:
+			return Resolution(attempt_status=UNRESOLVED, session_status=session_status)
+		if attempt_status in (PENDING, UNRESOLVED):
+			return Resolution(attempt_status=attempt_status, session_status=session_status)
 
 	check_attempt_transition(attempt_status, result.status)
 

@@ -32,13 +32,14 @@ def succeeded(amount="5000", currency="XAF"):
 	return ProviderResult(lc.SUCCEEDED, Decimal(amount), currency, "TX-1")
 
 
-def resolve(result, *, session=lc.OPEN, attempt=lc.PENDING):
+def resolve(result, *, session=lc.OPEN, attempt=lc.PENDING, past_deadline=False):
 	return lc.resolve(
 		session_status=session,
 		session_amount=Decimal("5000"),
 		session_currency="XAF",
 		attempt_status=attempt,
 		result=result,
+		past_deadline=past_deadline,
 	)
 
 
@@ -110,9 +111,25 @@ class TestResolve(unittest.TestCase):
 			r = resolve(ProviderResult(status))
 			self.assertEqual((r.attempt_status, r.session_status), (status, lc.OPEN))
 
-	def test_repeated_pending_changes_nothing(self):
-		r = resolve(ProviderResult(lc.PENDING), attempt=lc.PENDING)
-		self.assertEqual((r.attempt_status, r.session_status), (lc.PENDING, lc.OPEN))
+	def test_still_pending_changes_nothing(self):
+		for attempt in (lc.PENDING, lc.UNRESOLVED):
+			r = resolve(ProviderResult(lc.PENDING), attempt=attempt, past_deadline=False)
+			self.assertEqual((r.attempt_status, r.session_status), (attempt, lc.OPEN))
+
+	def test_pending_past_local_deadline_becomes_unresolved(self):
+		for attempt in (lc.INITIATED, lc.PENDING):
+			r = resolve(ProviderResult(lc.PENDING), attempt=attempt, past_deadline=True)
+			self.assertEqual(r.attempt_status, lc.UNRESOLVED)
+
+	def test_unresolved_attempt_polled_again_stays_unresolved(self):
+		r = resolve(ProviderResult(lc.PENDING), attempt=lc.UNRESOLVED, past_deadline=True)
+		self.assertEqual(r.attempt_status, lc.UNRESOLVED)
+
+	def test_late_success_is_applied_whatever_the_deadline(self):
+		for attempt in (lc.INITIATED, lc.PENDING, lc.UNRESOLVED):
+			with self.subTest(attempt=attempt):
+				r = resolve(succeeded(), attempt=attempt, past_deadline=True)
+				self.assertEqual((r.attempt_status, r.session_status), (lc.SUCCEEDED, lc.PAID))
 
 	def test_any_result_on_a_final_attempt_is_illegal(self):
 		for attempt in (lc.SUCCEEDED, lc.FAILED, lc.EXPIRED, lc.ERROR):
