@@ -1,12 +1,25 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
+import base64
+from unittest.mock import MagicMock, patch
+
 import frappe
+import requests
 from frappe.tests import IntegrationTestCase
 from payments.utils import get_payment_gateway_controller
 
+from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import CacheTokenStore
+from local_payments.providers.mtn_momo import MtnMomoError
+
 SETTINGS = "MTN MoMo Settings"
 GATEWAY = "MTN MoMo-momo-test"
+
+
+def http_response(status, body):
+	response = MagicMock(status_code=status)
+	response.json.return_value = body
+	return response
 
 
 def make_settings(**overrides):
@@ -46,6 +59,57 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 		controller = get_payment_gateway_controller(GATEWAY)
 		self.assertEqual((controller.doctype, controller.name), (SETTINGS, "momo-test"))
 
+	def test_check_status_asks_mtn_with_the_decrypted_credentials(self):
+		self.addCleanup(CacheTokenStore().delete, self.settings.token_cache_key)
+		replies = [
+			http_response(200, {"access_token": "fake-access-token", "expires_in": 3600}),
+			http_response(200, {"amount": "5000", "currency": "EUR", "status": "SUCCESSFUL"}),
+		]
+		with patch("local_payments.providers.mtn_momo.requests.Session") as session:
+			session.return_value.request.side_effect = replies
+			result = self.settings.check_status("3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11", {})
+
+		token_headers = session.return_value.request.call_args_list[0].kwargs["headers"]
+		basic = base64.b64encode(b"00000000-0000-4000-8000-000000000000:fake-api-key").decode()
+		self.assertEqual(token_headers["Authorization"], f"Basic {basic}")
+		self.assertEqual(token_headers["Ocp-Apim-Subscription-Key"], "fake-subscription-key")
+		# The settings default to Sandbox, whose EUR answer is read back in the contract's currency.
+		self.assertEqual((result.status, result.amount, result.currency), ("Succeeded", "5000", "XAF"))
+
+	def test_a_failed_status_query_logs_no_secret_or_payer_number(self):
+		self.addCleanup(CacheTokenStore().delete, self.settings.token_cache_key)
+		token = http_response(200, {"access_token": "fake-access-token", "expires_in": 3600})
+		unknown_status = http_response(200, {"status": "ONGOING", "payer": {"partyId": "237000000001"}})
+		# Named so Frappe masks it: this frame is part of the traceback under test.
+		basic_auth_secret = base64.b64encode(b"00000000-0000-4000-8000-000000000000:fake-api-key").decode()
+		cases = {
+			"token timeout": [requests.ConnectTimeout()],
+			"status timeout": [token, requests.ReadTimeout()],
+			"unknown status": [token, unknown_status],
+			"non-text status": [
+				token,
+				http_response(200, {"status": [], "payer": {"partyId": "237000000001"}}),
+			],
+		}
+		for case, replies in cases.items():
+			CacheTokenStore().delete(self.settings.token_cache_key)
+			with self.subTest(case), patch("local_payments.providers.mtn_momo.requests.Session") as session:
+				session.return_value.request.side_effect = replies
+				try:
+					self.settings.check_status("3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11", {})
+				except MtnMomoError:
+					# What frappe.log_error would store in the Error Log.
+					logged = frappe.get_traceback(with_context=True)
+				self.assertIn("providers/mtn_momo.py", logged)
+				for secret in (
+					"fake-api-key",
+					"fake-subscription-key",
+					"fake-access-token",
+					basic_auth_secret,
+					"237000000001",
+				):
+					self.assertNotIn(secret, logged)
+
 	def test_gateway_name_cannot_change_after_insert(self):
 		self.settings.gateway_name = "momo-renamed"
 		with self.assertRaises(frappe.CannotChangeConstantError):
@@ -67,6 +131,7 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 		cases = {
 			"plain http": {"api_base_url": "http://sandbox.momodeveloper.mtn.com"},
 			"no host": {"api_base_url": "https://"},
+			"sandbox on a production host": {"api_base_url": "https://api.mtn.example"},
 			"prefix with plus": {"msisdn_prefix": "+237"},
 			"prefix with letters": {"msisdn_prefix": "23a"},
 			"zero national length": {"msisdn_national_length": 0},

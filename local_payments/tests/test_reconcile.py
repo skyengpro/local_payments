@@ -168,6 +168,15 @@ class TestReconcile(IntegrationTestCase):
 		self.assertTrue(frappe.db.exists("ToDo", {"description": EFFECT}))
 		self.assertIsNone(frappe.flags.data)
 
+	def test_provider_status_is_kept_on_the_attempt(self):
+		session = make_session()
+		self.reconcile(
+			session, FakeProvider(ProviderResult("Failed", provider_status="FAILED: NOT_ENOUGH_FUNDS"))
+		)
+
+		attempt = reload(session).attempts[0]
+		self.assertEqual((attempt.status, attempt.provider_status), ("Failed", "FAILED: NOT_ENOUGH_FUNDS"))
+
 	def test_consumer_runs_under_a_row_lock_on_the_session(self):
 		session = make_session()
 		lock_probe.clear()
