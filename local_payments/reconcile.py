@@ -14,6 +14,9 @@ inside a consumer's transaction:
    happens to the consumer's callback.
 3. authorize: under a row lock on the session, run `on_payment_authorized`. Its effects and
    `authorization = Done` commit together. On error its effects are undone and `Failed` is recorded.
+
+Paths that change nothing roll back instead of committing, only to release the row lock. That drops any
+write the caller left pending, which is one more reason to call this module with a clean transaction.
 """
 
 from datetime import timedelta
@@ -82,7 +85,7 @@ def authorize(session_name: str) -> bool:
 	session = frappe.get_doc("Local Payment", session_name, for_update=True)
 	attempt = _paying_attempt(session)
 	if session.status != lc.PAID or session.authorization == AUTH_DONE or not attempt:
-		frappe.db.commit()
+		frappe.db.rollback()  # nothing to keep, release the row lock
 		return session.authorization == AUTH_DONE
 
 	frappe.db.savepoint(SAVEPOINT)
@@ -97,7 +100,7 @@ def authorize(session_name: str) -> bool:
 	if isinstance(redirect, str):
 		session.success_redirect = redirect
 	session.save(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- effects and Done commit together (D4)
 	return True
 
 
@@ -113,13 +116,13 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 	row = _attempt_row(session, attempt_id)
 	too_soon = row.last_checked_on and now - get_datetime(row.last_checked_on) < MIN_CHECK_INTERVAL
 	if row.status not in CHECKABLE_STATES or too_soon:
-		frappe.db.commit()
+		frappe.db.rollback()  # nothing to keep, release the row lock
 		return None
 
 	row.last_checked_on = now
 	row.check_count = (row.check_count or 0) + 1
 	session.save(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- release the lock before the provider call
 	return session.name, session.payment_gateway, frappe.parse_json(row.provider_data or "{}")
 
 
@@ -131,7 +134,7 @@ def _record(
 	row = _attempt_row(session, attempt_id)
 	if row.status not in CHECKABLE_STATES:
 		# Another trigger settled this attempt while we were waiting for the provider.
-		frappe.db.commit()
+		frappe.db.rollback()  # nothing to keep, release the row lock
 		return None
 
 	resolution = lc.resolve(
@@ -160,7 +163,7 @@ def _record(
 		session.authorization = AUTH_PENDING
 
 	session.save(ignore_permissions=True)
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
 	alert = "duplicate" if resolution.duplicate else "amount_mismatch" if resolution.amount_mismatch else None
 	return resolution, alert
@@ -225,7 +228,7 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 		reference_doctype="Local Payment",
 		reference_name=session.name,
 	)
-	frappe.db.commit()
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Failed must survive whatever the caller does next
 
 
 def _alert_managers(session_name: str, attempt_id: str, reason: str) -> None:
