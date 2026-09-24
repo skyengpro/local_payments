@@ -72,6 +72,8 @@ class ProviderResult:
 	amount: Decimal | int | float | str | None = None
 	currency: str | None = None
 	transaction_id: str | None = None
+	# The provider's own words, e.g. "FAILED: NOT_ENOUGH_FUNDS", kept for support.
+	provider_status: str | None = None
 
 	def __post_init__(self):
 		if self.status not in PROVIDER_STATUSES:
