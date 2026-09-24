@@ -149,23 +149,16 @@ required_apps = ["payments"]
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"local_payments.tasks.all"
-# 	],
-# 	"daily": [
-# 		"local_payments.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"local_payments.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"local_payments.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"local_payments.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"*/2 * * * *": ["local_payments.scheduler.check_due_attempts"],
+	},
+	"hourly": [
+		"local_payments.scheduler.check_unresolved_attempts",
+		"local_payments.scheduler.retry_authorizations",
+	],
+	"daily": ["local_payments.scheduler.send_daily_alerts"],
+}
 
 # Testing
 # -------

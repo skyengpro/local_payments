@@ -303,3 +303,38 @@ class TestReconcile(IntegrationTestCase):
 
 		self.assertIsNone(self.reconcile(session, SlowProvider(succeeded())))
 		self.assertEqual(reload(session).status, "Open")
+
+
+class TestSchedulingPolicy(IntegrationTestCase):
+	"""reconcile() owns the dates the scheduler reads back (ARCHITECTURE, "Scheduled tasks")."""
+
+	def test_failed_authorization_backoff_doubles_then_is_capped(self):
+		hours = [rc.authorization_retry_delay(rc.AUTH_FAILED, n) / timedelta(hours=1) for n in range(10)]
+		self.assertEqual(hours, [1, 1, 2, 4, 8, 16, 24, 24, 24, 24])
+
+	def test_pending_authorization_only_gets_a_short_grace(self):
+		self.assertEqual(rc.authorization_retry_delay(rc.AUTH_PENDING, 0), rc.PENDING_AUTHORIZATION_GRACE)
+
+	def test_unresolved_polling_slows_down_with_age(self):
+		ladder = [rc.unresolved_poll_interval(timedelta(hours=age)) for age in (0, 5, 6, 23, 24, 71)]
+		self.assertEqual([i / timedelta(hours=1) for i in ladder], [1, 1, 4, 4, 12, 12])
+
+	def test_every_retry_fits_well_before_the_daily_alert(self):
+		tries = range(1, rc.MAX_AUTHORIZATION_TRIES)
+		total = sum((rc.authorization_retry_delay(rc.AUTH_FAILED, n) for n in tries), timedelta())
+		self.assertLess(total, timedelta(days=1))
+
+	def test_an_authorization_that_used_up_its_tries_gets_no_retry_date(self):
+		session = frappe._dict(authorization=rc.AUTH_FAILED, authorization_tries=rc.MAX_AUTHORIZATION_TRIES)
+		self.assertIsNone(rc._next_authorization_retry(now_datetime(), session))
+
+	def test_a_settled_attempt_gets_no_next_check(self):
+		for status in ("Succeeded", "Failed", "Expired", "Error"):
+			with self.subTest(status=status):
+				row = frappe._dict(status=status, expires_on=None)
+				self.assertIsNone(rc._next_attempt_check(now_datetime(), row))
+
+	def test_an_unresolved_attempt_is_rescheduled_on_the_decreasing_ladder(self):
+		now = now_datetime()
+		row = frappe._dict(status="Unresolved", expires_on=add_to_date(now, hours=-30))
+		self.assertEqual(rc._next_attempt_check(now, row), now + timedelta(hours=12))
