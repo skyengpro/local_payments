@@ -63,6 +63,13 @@ MAX_AUTHORIZATION_TRIES = 5
 SAVEPOINT = "lp_authorize"
 
 
+def check_interval_elapsed(last_checked_on, now=None) -> bool:
+	"""True when enough time has passed to ask the provider about this attempt again."""
+	if not last_checked_on:
+		return True
+	return (now or now_datetime()) - get_datetime(last_checked_on) >= MIN_CHECK_INTERVAL
+
+
 def unresolved_poll_interval(age: timedelta) -> timedelta:
 	"""How long to wait before querying an Unresolved attempt again, given how long it has been Unresolved."""
 	for limit, interval in UNRESOLVED_POLL_LADDER:
@@ -169,8 +176,7 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 
 	session = frappe.get_doc("Local Payment", session_name, for_update=True)
 	row = _attempt_row(session, attempt_id)
-	too_soon = row.last_checked_on and now - get_datetime(row.last_checked_on) < MIN_CHECK_INTERVAL
-	if row.status not in CHECKABLE_STATES or too_soon:
+	if row.status not in CHECKABLE_STATES or not check_interval_elapsed(row.last_checked_on, now):
 		frappe.db.rollback()  # nothing to keep, release the row lock
 		return None
 

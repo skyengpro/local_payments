@@ -1,0 +1,509 @@
+# French translations for Local Payments.
+# Copyright (C) 2026 SkyEngPro
+# This file is distributed under the same license as the Local Payments project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Local Payments VERSION\n"
+"Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
+"POT-Creation-Date: 2026-09-24 13:22+0000\n"
+"PO-Revision-Date: 2026-09-24 09:58+0000\n"
+"Last-Translator: ayonta.lontsi@skyengpro.com\n"
+"Language: fr\n"
+"Language-Team: ayonta.lontsi@skyengpro.com\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.16.0\n"
+
+#. Label of the alerted (Check) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Alerted"
+msgstr ""
+
+#. Label of the amount (Currency) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Amount"
+msgstr ""
+
+#. Label of the amount_mismatch (Check) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Amount Mismatch"
+msgstr ""
+
+#: local_payments/gateway.py:37
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:55
+msgid "Amount must be strictly positive."
+msgstr ""
+
+#. Description of the 'Amount Mismatch' (Check) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Amount or currency does not match the session."
+msgstr ""
+
+#: local_payments/reconcile.py:305
+msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
+msgstr ""
+
+#. Description of the 'Request Data' (Code) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Arguments received by get_payment_url."
+msgstr ""
+
+#. Label of the attempt_id (Data) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Attempt ID"
+msgstr ""
+
+#: local_payments/reconcile.py:306
+msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
+msgstr ""
+
+#. Label of the section_break_attempts (Section Break) field in DocType 'Local
+#. Payment'
+#. Label of the attempts (Table) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Attempts"
+msgstr ""
+
+#. Label of the authorization (Select) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization"
+msgstr ""
+
+#. Label of the authorization_alerted (Check) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization Alerted"
+msgstr ""
+
+#. Label of the authorization_error (Small Text) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization Error"
+msgstr ""
+
+#. Label of the authorization_next_retry_on (Datetime) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization Next Retry On"
+msgstr ""
+
+#. Label of the authorization_tries (Int) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization Tries"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:44
+msgid "Cancelled"
+msgstr "Annulé"
+
+#. Label of the check_count (Int) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Check Count"
+msgstr ""
+
+#. Label of the column_break_amount (Column Break) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Column Break Amount"
+msgstr ""
+
+#. Label of the column_break_authorization (Column Break) field in DocType
+#. 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Column Break Authorization"
+msgstr ""
+
+#. Label of the column_break_dates (Column Break) field in DocType 'Local
+#. Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Column Break Dates"
+msgstr ""
+
+#. Label of the column_break_payer (Column Break) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Column Break Payer"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:34
+msgid "Confirm the payment on your phone. This page updates on its own."
+msgstr "Confirmez le paiement sur votre téléphone. Cette page se met à jour toute seule."
+
+#. Label of the confirmed_amount (Currency) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Confirmed Amount"
+msgstr ""
+
+#. Label of the confirmed_currency (Data) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Confirmed Currency"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:42
+msgid "Continue"
+msgstr "Continuer"
+
+#. Label of the currency (Link) field in DocType 'Local Payment'
+#. Label of the currency (Link) field in DocType 'Local Payments Test Settings'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "Currency"
+msgstr ""
+
+#. Label of the description (Small Text) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Description"
+msgstr ""
+
+#. Option for the 'Authorization' (Select) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Done"
+msgstr ""
+
+#. Label of the duplicate (Check) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Duplicate"
+msgstr ""
+
+#: local_payments/reconcile.py:304
+msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
+msgstr ""
+
+#. Label of the enabled (Check) field in DocType 'Local Payments Test Settings'
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "Enabled"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Error"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Expired"
+msgstr ""
+
+#. Label of the expires_on (Datetime) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Expires On"
+msgstr ""
+
+#. Option for the 'Authorization' (Select) field in DocType 'Local Payment'
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Failed"
+msgstr ""
+
+#. Label of the gateway_name (Data) field in DocType 'Local Payments Test
+#. Settings'
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "Gateway Name"
+msgstr ""
+
+#. Description of the 'Token' (Data) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Guest access key. Generated on insert."
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Initiated"
+msgstr ""
+
+#. Label of the integration_request (Data) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Integration Request"
+msgstr ""
+
+#. Label of the last_checked_on (Datetime) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Last Checked On"
+msgstr ""
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Local Payment"
+msgstr ""
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Local Payment Attempt"
+msgstr ""
+
+#. Name of a role
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Local Payments Manager"
+msgstr ""
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "Local Payments Test Settings"
+msgstr ""
+
+#. Description of the 'Authorization Alerted' (Check) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Managers have been told the authorization gave up. Keeps the daily alert to one."
+msgstr ""
+
+#. Description of the 'Alerted' (Check) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Managers have been told this attempt stayed unresolved. Keeps the daily alert to one."
+msgstr ""
+
+#. Description of a DocType
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "Minimal Settings doctype used only by the tests of gateway.py. Not a real provider."
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:25
+msgid "Mobile money number"
+msgstr "Numéro mobile money"
+
+#. Description of the 'Integration Request' (Data) field in DocType 'Local
+#. Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Name only, no link: Integration Request is purged after 90 days."
+msgstr ""
+
+#. Label of the next_check_on (Datetime) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Next Check On"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Open"
+msgstr ""
+
+#. Label of the section_break_outcome (Section Break) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Outcome"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Paid"
+msgstr ""
+
+#. Label of the paid_amount (Currency) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Paid Amount"
+msgstr ""
+
+#. Label of the paid_on (Datetime) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Paid On"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:29
+msgid "Pay"
+msgstr "Payer"
+
+#. Label of the section_break_payer (Section Break) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Payer"
+msgstr ""
+
+#. Label of the payer_email (Data) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Payer Email"
+msgstr ""
+
+#. Label of the payer_msisdn (Data) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Payer MSISDN"
+msgstr ""
+
+#. Label of the payer_name (Data) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Payer Name"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:30
+msgid "Paying from this page is not open yet."
+msgstr "Le paiement depuis cette page n'est pas encore ouvert."
+
+#: local_payments/templates/pages/local_payment_checkout.html:3
+#: local_payments/templates/pages/local_payment_checkout.html:16
+msgid "Payment"
+msgstr "Paiement"
+
+#. Label of the payment_gateway (Link) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Payment Gateway"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:20
+msgid "Payment by {0}"
+msgstr "Paiement par {0}"
+
+#: local_payments/reconcile.py:307
+msgid "Payment on {0} is received but its authorization failed {1} times."
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:41
+msgid "Payment received"
+msgstr "Paiement reçu"
+
+#. Option for the 'Authorization' (Select) field in DocType 'Local Payment'
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Pending"
+msgstr ""
+
+#. Label of the section_break_provider (Section Break) field in DocType 'Local
+#. Payment Attempt'
+#. Label of the provider_data (Code) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Provider Data"
+msgstr ""
+
+#. Label of the provider_status (Data) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Provider Status"
+msgstr ""
+
+#. Label of the provider_transaction_id (Data) field in DocType 'Local Payment'
+#. Label of the provider_transaction_id (Data) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Provider Transaction ID"
+msgstr ""
+
+#. Description of the 'Provider Data' (Code) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Provider-specific fields, written by providers/ only."
+msgstr ""
+
+#. Label of the redirect_to (Small Text) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Redirect To"
+msgstr ""
+
+#. Label of the reference_doctype (Link) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Reference DocType"
+msgstr ""
+
+#. Label of the reference_docname (Dynamic Link) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Reference Name"
+msgstr ""
+
+#. Label of the section_break_request (Section Break) field in DocType 'Local
+#. Payment'
+#. Label of the request_data (Code) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Request Data"
+msgstr ""
+
+#. Label of the started_on (Datetime) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Started On"
+msgstr ""
+
+#. Label of the status (Select) field in DocType 'Local Payment'
+#. Label of the status (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Status"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Succeeded"
+msgstr ""
+
+#. Label of the success_redirect (Small Text) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Success Redirect"
+msgstr ""
+
+#. Description of the 'Duplicate' (Check) field in DocType 'Local Payment
+#. Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Success on an already-paid session."
+msgstr ""
+
+#. Name of a role
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+msgid "System Manager"
+msgstr ""
+
+#: local_payments/gateway.py:77
+msgid "The payment gateway {0} is disabled."
+msgstr ""
+
+#: local_payments/gateway.py:66
+msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
+msgstr ""
+
+#: local_payments/api.py:144
+msgid "This payment page is no longer available."
+msgstr "Cette page de paiement n'est plus disponible."
+
+#: local_payments/templates/pages/local_payment_checkout.html:45
+msgid "This payment request was cancelled. Ask the sender for a new link."
+msgstr "Cette demande de paiement a été annulée. Demandez un nouveau lien à l'expéditeur."
+
+#. Label of the title (Data) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Title"
+msgstr ""
+
+#. Label of the token (Data) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Token"
+msgstr ""
+
+#. Description of the 'Success Redirect' (Small Text) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "URL returned by on_payment_authorized."
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
+msgid "Unresolved"
+msgstr ""
+
+#. Option for the 'Status' (Select) field in DocType 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Void"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:38
+msgid "We are still waiting for an answer. Reload this page to check again."
+msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifier à nouveau."
+
+#. Description of the 'Authorization Next Retry On' (Datetime) field in DocType
+#. 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "When the scheduler may retry the authorization. Set by reconcile()."
+msgstr ""
+
+#: local_payments/gateway.py:39
+msgid "{0} has no minor unit, so the amount must be a whole number."
+msgstr ""
+
