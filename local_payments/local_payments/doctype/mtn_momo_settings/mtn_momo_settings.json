@@ -1,0 +1,196 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:gateway_name",
+ "creation": "2026-09-24 00:00:00.000000",
+ "description": "One MTN MoMo Collection merchant contract. Saving it creates the MTN MoMo-<Gateway Name> payment gateway.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "gateway_name",
+  "enabled",
+  "column_break_contract",
+  "environment",
+  "currency",
+  "api_section",
+  "api_base_url",
+  "target_environment",
+  "subscription_key",
+  "column_break_api",
+  "api_user",
+  "api_key",
+  "payer_section",
+  "msisdn_prefix",
+  "msisdn_national_length",
+  "column_break_payer",
+  "pending_timeout_minutes",
+  "send_callback",
+  "messages_section",
+  "payer_message",
+  "payee_note"
+ ],
+ "fields": [
+  {
+   "description": "Cannot be changed once saved: the payment gateway is named after it.",
+   "fieldname": "gateway_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Gateway Name",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "A disabled gateway refuses new payments.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "column_break_contract",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Sandbox",
+   "fieldname": "environment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Environment",
+   "options": "Sandbox\nProduction",
+   "reqd": 1
+  },
+  {
+   "default": "XAF",
+   "description": "The only currency this gateway accepts.",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_section",
+   "fieldtype": "Section Break",
+   "label": "API"
+  },
+  {
+   "default": "https://sandbox.momodeveloper.mtn.com",
+   "description": "In production, the URL provided by MTN.",
+   "fieldname": "api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "reqd": 1
+  },
+  {
+   "default": "sandbox",
+   "description": "Sent as X-Target-Environment. In production, the value provided by MTN.",
+   "fieldname": "target_environment",
+   "fieldtype": "Data",
+   "label": "Target Environment",
+   "reqd": 1
+  },
+  {
+   "description": "Collection product key (Ocp-Apim-Subscription-Key).",
+   "fieldname": "subscription_key",
+   "fieldtype": "Password",
+   "label": "Subscription Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_api",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "api_user",
+   "fieldtype": "Data",
+   "label": "API User",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_key",
+   "fieldtype": "Password",
+   "label": "API Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payer_section",
+   "fieldtype": "Section Break",
+   "label": "Payer"
+  },
+  {
+   "description": "Country code without +, e.g. 237 for Cameroon.",
+   "fieldname": "msisdn_prefix",
+   "fieldtype": "Data",
+   "label": "MSISDN Prefix",
+   "reqd": 1
+  },
+  {
+   "description": "Digits in the national number, e.g. 9 for Cameroon.",
+   "fieldname": "msisdn_national_length",
+   "fieldtype": "Int",
+   "label": "MSISDN National Length",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_payer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "description": "How long a request may stay pending before the attempt is marked Unresolved.",
+   "fieldname": "pending_timeout_minutes",
+   "fieldtype": "Int",
+   "label": "Pending Timeout (Minutes)"
+  },
+  {
+   "default": "1",
+   "description": "Ask MTN to call the site back when the payer answers.",
+   "fieldname": "send_callback",
+   "fieldtype": "Check",
+   "label": "Send Callback"
+  },
+  {
+   "fieldname": "messages_section",
+   "fieldtype": "Section Break",
+   "label": "Messages"
+  },
+  {
+   "description": "Shown to the payer. At most 160 characters.",
+   "fieldname": "payer_message",
+   "fieldtype": "Data",
+   "label": "Payer Message",
+   "length": 160
+  },
+  {
+   "description": "Merchant-side note. At most 160 characters.",
+   "fieldname": "payee_note",
+   "fieldtype": "Data",
+   "label": "Payee Note",
+   "length": 160
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-09-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Local Payments",
+ "name": "MTN MoMo Settings",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

@@ -7,14 +7,44 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-09-24 13:22+0000\n"
-"PO-Revision-Date: 2026-09-24 13:22+0000\n"
+"POT-Creation-Date: 2026-09-24 14:45+0000\n"
+"PO-Revision-Date: 2026-09-24 14:45+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
+
+#. Description of the 'Enabled' (Check) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "A disabled gateway refuses new payments."
+msgstr ""
+
+#. Label of the api_section (Section Break) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "API"
+msgstr ""
+
+#. Label of the api_base_url (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "API Base URL"
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:36
+msgid "API Base URL must be an https:// address."
+msgstr ""
+
+#. Label of the api_key (Password) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "API Key"
+msgstr ""
+
+#. Label of the api_user (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "API User"
+msgstr ""
 
 #. Label of the alerted (Check) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
@@ -50,6 +80,12 @@ msgstr ""
 #. Description of the 'Request Data' (Code) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Arguments received by get_payment_url."
+msgstr ""
+
+#. Description of the 'Send Callback' (Check) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Ask MTN to call the site back when the payer answers."
 msgstr ""
 
 #. Label of the attempt_id (Data) field in DocType 'Local Payment Attempt'
@@ -99,9 +135,21 @@ msgstr ""
 msgid "Cancelled"
 msgstr ""
 
+#. Description of the 'Gateway Name' (Data) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Cannot be changed once saved: the payment gateway is named after it."
+msgstr ""
+
 #. Label of the check_count (Int) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Check Count"
+msgstr ""
+
+#. Description of the 'Subscription Key' (Password) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Collection product key (Ocp-Apim-Subscription-Key)."
 msgstr ""
 
 #. Label of the column_break_amount (Column Break) field in DocType 'Local
@@ -148,16 +196,30 @@ msgstr ""
 msgid "Continue"
 msgstr ""
 
+#. Description of the 'MSISDN Prefix' (Data) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Country code without +, e.g. 237 for Cameroon."
+msgstr ""
+
 #. Label of the currency (Link) field in DocType 'Local Payment'
 #. Label of the currency (Link) field in DocType 'Local Payments Test Settings'
+#. Label of the currency (Link) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Currency"
 msgstr ""
 
 #. Label of the description (Small Text) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Description"
+msgstr ""
+
+#. Description of the 'MSISDN National Length' (Int) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Digits in the national number, e.g. 9 for Cameroon."
 msgstr ""
 
 #. Option for the 'Authorization' (Select) field in DocType 'Local Payment'
@@ -175,8 +237,15 @@ msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
 #. Label of the enabled (Check) field in DocType 'Local Payments Test Settings'
+#. Label of the enabled (Check) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Enabled"
+msgstr ""
+
+#. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Environment"
 msgstr ""
 
 #. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
@@ -203,13 +272,27 @@ msgstr ""
 
 #. Label of the gateway_name (Data) field in DocType 'Local Payments Test
 #. Settings'
+#. Label of the gateway_name (Data) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Gateway Name"
 msgstr ""
 
 #. Description of the 'Token' (Data) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Guest access key. Generated on insert."
+msgstr ""
+
+#. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType 'MTN
+#. MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "How long a request may stay pending before the attempt is marked Unresolved."
+msgstr ""
+
+#. Description of the 'API Base URL' (Data) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "In production, the URL provided by MTN."
 msgstr ""
 
 #. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
@@ -249,6 +332,30 @@ msgstr ""
 msgid "Local Payments Test Settings"
 msgstr ""
 
+#. Label of the msisdn_national_length (Int) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "MSISDN National Length"
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:42
+msgid "MSISDN National Length must be greater than zero."
+msgstr ""
+
+#. Label of the msisdn_prefix (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "MSISDN Prefix"
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:40
+msgid "MSISDN Prefix must contain digits only, without + or 00."
+msgstr ""
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "MTN MoMo Settings"
+msgstr ""
+
 #. Description of the 'Authorization Alerted' (Check) field in DocType 'Local
 #. Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
@@ -259,6 +366,17 @@ msgstr ""
 #. Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Managers have been told this attempt stayed unresolved. Keeps the daily alert to one."
+msgstr ""
+
+#. Description of the 'Payee Note' (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Merchant-side note. At most 160 characters."
+msgstr ""
+
+#. Label of the messages_section (Section Break) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Messages"
 msgstr ""
 
 #. Description of a DocType
@@ -280,6 +398,11 @@ msgstr ""
 #. Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Next Check On"
+msgstr ""
+
+#. Description of a DocType
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "One MTN MoMo Collection merchant contract. Saving it creates the MTN MoMo-<Gateway Name> payment gateway."
 msgstr ""
 
 #. Option for the 'Status' (Select) field in DocType 'Local Payment'
@@ -312,9 +435,17 @@ msgstr ""
 msgid "Pay"
 msgstr ""
 
+#. Label of the payee_note (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Payee Note"
+msgstr ""
+
 #. Label of the section_break_payer (Section Break) field in DocType 'Local
 #. Payment'
+#. Label of the payer_section (Section Break) field in DocType 'MTN MoMo
+#. Settings'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Payer"
 msgstr ""
 
@@ -326,6 +457,11 @@ msgstr ""
 #. Label of the payer_msisdn (Data) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Payer MSISDN"
+msgstr ""
+
+#. Label of the payer_message (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Payer Message"
 msgstr ""
 
 #. Label of the payer_name (Data) field in DocType 'Local Payment'
@@ -364,6 +500,21 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Pending"
+msgstr ""
+
+#. Label of the pending_timeout_minutes (Int) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Pending Timeout (Minutes)"
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:27
+msgid "Pending Timeout (Minutes) must be greater than zero."
+msgstr ""
+
+#. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Production"
 msgstr ""
 
 #. Label of the section_break_provider (Section Break) field in DocType 'Local
@@ -415,6 +566,28 @@ msgstr ""
 msgid "Request Data"
 msgstr ""
 
+#. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Sandbox"
+msgstr ""
+
+#. Label of the send_callback (Check) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Send Callback"
+msgstr ""
+
+#. Description of the 'Target Environment' (Data) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Sent as X-Target-Environment. In production, the value provided by MTN."
+msgstr ""
+
+#. Description of the 'Payer Message' (Data) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Shown to the payer. At most 160 characters."
+msgstr ""
+
 #. Label of the started_on (Datetime) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Started On"
@@ -425,6 +598,12 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Status"
+msgstr ""
+
+#. Label of the subscription_key (Password) field in DocType 'MTN MoMo
+#. Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Subscription Key"
 msgstr ""
 
 #. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
@@ -446,7 +625,18 @@ msgstr ""
 #. Name of a role
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "System Manager"
+msgstr ""
+
+#. Label of the target_environment (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "Target Environment"
+msgstr ""
+
+#. Description of the 'Currency' (Link) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+msgid "The only currency this gateway accepts."
 msgstr ""
 
 #: local_payments/gateway.py:77
@@ -457,7 +647,7 @@ msgstr ""
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:144
+#: local_payments/api.py:145
 msgid "This payment page is no longer available."
 msgstr ""
 

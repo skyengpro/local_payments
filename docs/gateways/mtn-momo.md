@@ -30,25 +30,32 @@ contract seen by consumers is therefore identical to Orange Money's.
 
 ## Configuration
 
-Doctype `MTN MoMo Settings`, not Single, named by `gateway_name`.
+Doctype `MTN MoMo Settings`, not Single, named by `gateway_name`. Only
+System Manager can read or edit it.
 
 | Field | Type | Required | Role |
 | --- | --- | --- | --- |
-| `gateway_name` | Data | yes | Contract name. Gives its name to the document and to the `MTN MoMo-<gateway_name>` gateway. |
-| `enabled` | Check | | A disabled gateway refuses `get_payment_url()`. |
-| `environment` | Select: Sandbox, Production | yes | |
-| `api_base_url` | Data | yes | Sandbox: `https://sandbox.momodeveloper.mtn.com`. Production: URL provided by MTN. |
-| `target_environment` | Data | yes | Value of the `X-Target-Environment` header: `sandbox`, or the production value provided by MTN. |
-| `currency` | Link: Currency | yes | Accepted currency: `XAF` in Cameroon. |
+| `gateway_name` | Data | yes | Contract name. Gives its name to the document and to the `MTN MoMo-<gateway_name>` gateway. A change after the document is created is refused. |
+| `enabled` | Check | | A disabled gateway refuses `get_payment_url()`. Unchecked by default. |
+| `environment` | Select: Sandbox, Production | yes | Defaults to Sandbox. |
+| `api_base_url` | Data | yes | Sandbox: `https://sandbox.momodeveloper.mtn.com` (the default). Production: URL provided by MTN. Must start with `https://`. |
+| `target_environment` | Data | yes | Value of the `X-Target-Environment` header: `sandbox` (the default), or the production value provided by MTN. |
+| `currency` | Link: Currency | yes | Accepted currency: `XAF` in Cameroon (the default). |
 | `subscription_key` | Password | yes | Subscription key for the Collection product (`Ocp-Apim-Subscription-Key`). |
 | `api_user` | Data | yes | API user identifier. |
 | `api_key` | Password | yes | API user key. |
-| `msisdn_prefix` | Data | yes | Country code without `+`: `237` for Cameroon. |
-| `msisdn_national_length` | Int | yes | Length of the national number: 9 in Cameroon. |
-| `pending_timeout_minutes` | Int | | Local delay before `Unresolved`. Defaults to 15. |
+| `msisdn_prefix` | Data | yes | Country code without `+`: `237` for Cameroon. Digits only. |
+| `msisdn_national_length` | Int | yes | Length of the national number: 9 in Cameroon. Greater than zero. |
+| `pending_timeout_minutes` | Int | | Local delay before `Unresolved`. Defaults to 15, also when left empty or set to 0. Cannot be negative. |
 | `payer_message` | Data | | Message shown to the payer. At most 160 characters. |
 | `payee_note` | Data | | Merchant-side note. At most 160 characters. |
 | `send_callback` | Check | | Sends `X-Callback-Url`. Checked by default. |
+
+Saving the document creates the `MTN MoMo-<gateway_name>` gateway if it does
+not exist yet, and announces it with `payment_gateway_enabled` when `enabled`
+is checked. `create_payment_gateway` never renames an existing gateway, so
+`gateway_name` is fixed once the document exists: renaming it would leave
+the old gateway, and the sessions that point to it, without settings.
 
 ## Operations
 
