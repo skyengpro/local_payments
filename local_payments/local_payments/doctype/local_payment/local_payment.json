@@ -29,6 +29,8 @@
   "authorization",
   "authorization_tries",
   "authorization_error",
+  "authorization_next_retry_on",
+  "authorization_alerted",
   "success_redirect",
   "section_break_attempts",
   "attempts",
@@ -195,6 +197,23 @@
    "label": "Authorization Error",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "authorization_next_retry_on",
+   "fieldtype": "Datetime",
+   "label": "Authorization Next Retry On",
+   "read_only": 1,
+   "no_copy": 1,
+   "search_index": 1,
+   "description": "When the scheduler may retry the authorization. Set by reconcile()."
+  },
+  {
+   "fieldname": "authorization_alerted",
+   "fieldtype": "Check",
+   "label": "Authorization Alerted",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Managers have been told the authorization gave up. Keeps the daily alert to one."
   },
   {
    "fieldname": "success_redirect",

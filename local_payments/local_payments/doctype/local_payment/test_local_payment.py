@@ -17,6 +17,8 @@ READ_ONLY_FIELDS = (
 	"authorization",
 	"authorization_tries",
 	"authorization_error",
+	"authorization_next_retry_on",
+	"authorization_alerted",
 )
 
 ATTEMPT_FIELDS = (
@@ -36,6 +38,7 @@ ATTEMPT_FIELDS = (
 	"next_check_on",
 	"check_count",
 	"integration_request",
+	"alerted",
 )
 
 
@@ -148,6 +151,13 @@ class TestLocalPayment(IntegrationTestCase):
 		self.assertTrue(attempt.get_field("attempt_id").unique)
 		self.assertTrue(attempt.get_field("attempt_id").search_index)
 		self.assertTrue(attempt.get_field("next_check_on").search_index)
+		# The 2-minute job narrows on status before it looks at the dates.
+		self.assertTrue(attempt.get_field("status").search_index)
+
+	def test_session_scheduler_indexes(self):
+		# The hourly retry job reads this column on every run.
+		session = frappe.get_meta("Local Payment")
+		self.assertTrue(session.get_field("authorization_next_retry_on").search_index)
 
 	def test_provider_data_is_read_only_code(self):
 		field = frappe.get_meta("Local Payment Attempt").get_field("provider_data")

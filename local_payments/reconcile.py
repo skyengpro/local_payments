@@ -40,7 +40,61 @@ AUTH_PENDING = "Pending"
 AUTH_DONE = "Done"
 AUTH_FAILED = "Failed"
 
+# When the scheduler may look at something again. reconcile() owns these dates: it writes next_check_on
+# and authorization_next_retry_on every time it records an outcome, so every scheduler query is a plain
+# comparison on one indexed column (ARCHITECTURE, "Scheduled tasks").
+#
+# An Unresolved attempt is polled at a decreasing frequency: (age since its deadline, interval).
+UNRESOLVED_POLL_LADDER = (
+	(timedelta(hours=6), timedelta(hours=1)),
+	(timedelta(hours=24), timedelta(hours=4)),
+)
+UNRESOLVED_POLL_FALLBACK = timedelta(hours=12)
+# After this, polling stops and the daily job alerts the managers.
+UNRESOLVED_ALERT_AFTER = timedelta(hours=72)
+
+# A Pending authorization is normally still running. Give it time before the scheduler steps in.
+PENDING_AUTHORIZATION_GRACE = timedelta(minutes=5)
+# Each failure waits twice as long as the one before, up to the cap.
+AUTHORIZATION_RETRY_BASE = timedelta(hours=1)
+AUTHORIZATION_RETRY_CAP = timedelta(hours=24)
+MAX_AUTHORIZATION_TRIES = 5
+
 SAVEPOINT = "lp_authorize"
+
+
+def unresolved_poll_interval(age: timedelta) -> timedelta:
+	"""How long to wait before querying an Unresolved attempt again, given how long it has been Unresolved."""
+	for limit, interval in UNRESOLVED_POLL_LADDER:
+		if age < limit:
+			return interval
+	return UNRESOLVED_POLL_FALLBACK
+
+
+def authorization_retry_delay(authorization: str, tries: int) -> timedelta:
+	"""How long to wait before running the consumer's callback again."""
+	if authorization == AUTH_PENDING:
+		return PENDING_AUTHORIZATION_GRACE
+	return min(AUTHORIZATION_RETRY_BASE * 2 ** max(tries - 1, 0), AUTHORIZATION_RETRY_CAP)
+
+
+def _next_attempt_check(now, row) -> object:
+	"""When the scheduler should ask the provider about this attempt again. None once it is settled."""
+	if lc.is_final_attempt_status(row.status):
+		return None
+	if row.status != lc.UNRESOLVED:
+		return now + MIN_CHECK_INTERVAL
+	age = now - get_datetime(row.expires_on) if row.expires_on else timedelta()
+	return now + unresolved_poll_interval(age)
+
+
+def _next_authorization_retry(now, session) -> object:
+	"""When the scheduler may retry the authorization. None once it is Done or has given up."""
+	if session.authorization not in (AUTH_PENDING, AUTH_FAILED):
+		return None
+	if (session.authorization_tries or 0) >= MAX_AUTHORIZATION_TRIES:
+		return None
+	return now + authorization_retry_delay(session.authorization, session.authorization_tries or 0)
 
 
 class StatusProvider(Protocol):
@@ -71,7 +125,7 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 	resolution, alert = recorded
 
 	if alert:
-		_alert_managers(session_name, attempt_id, alert)
+		alert_managers(session_name, attempt_id, alert)
 	if resolution.session_paid:
 		authorize(session_name)
 	return resolution
@@ -97,6 +151,7 @@ def authorize(session_name: str) -> bool:
 
 	session.authorization = AUTH_DONE
 	session.authorization_error = None
+	session.authorization_next_retry_on = None
 	if isinstance(redirect, str):
 		session.success_redirect = redirect
 	session.save(ignore_permissions=True)
@@ -149,7 +204,7 @@ def _record(
 	row.status = resolution.attempt_status
 	row.duplicate = int(resolution.duplicate)
 	row.amount_mismatch = int(resolution.amount_mismatch)
-	row.next_check_on = None if lc.is_final_attempt_status(row.status) else now + MIN_CHECK_INTERVAL
+	row.next_check_on = _next_attempt_check(now, row)
 	if result.status == lc.SUCCEEDED:
 		row.confirmed_amount = result.amount
 		row.confirmed_currency = result.currency
@@ -161,6 +216,7 @@ def _record(
 		session.paid_on = now
 		session.provider_transaction_id = result.transaction_id
 		session.authorization = AUTH_PENDING
+		session.authorization_next_retry_on = _next_authorization_retry(now, session)
 
 	session.save(ignore_permissions=True)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
@@ -221,6 +277,7 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	session.authorization = AUTH_FAILED
 	session.authorization_error = str(exc)
 	session.authorization_tries = (session.authorization_tries or 0) + 1
+	session.authorization_next_retry_on = _next_authorization_retry(now_datetime(), session)
 	session.save(ignore_permissions=True)
 	frappe.log_error(
 		title=f"Local Payment authorization failed: {session.name}",
@@ -231,12 +288,19 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Failed must survive whatever the caller does next
 
 
-def _alert_managers(session_name: str, attempt_id: str, reason: str) -> None:
-	"""Tell every Local Payments Manager. Must never break reconciliation."""
+def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
+	"""Tell every Local Payments Manager. Must never break its caller.
+
+	`detail` is the attempt id, or the number of tries for `authorization_exhausted`. Alerts that must be
+	sent only once are guarded by the caller through a flag column, not by looking at past notifications.
+	"""
 	subjects = {
 		"duplicate": _("Duplicate payment on {0} (attempt {1}). Check whether a refund is due."),
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
+		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
+		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 	}
+	subject = subjects[reason].format(session_name, detail)
 	try:
 		for user in get_users_with_role(MANAGER_ROLE):
 			frappe.get_doc(
@@ -244,7 +308,7 @@ def _alert_managers(session_name: str, attempt_id: str, reason: str) -> None:
 					"doctype": "Notification Log",
 					"type": "Alert",
 					"for_user": user,
-					"subject": subjects[reason].format(session_name, attempt_id),
+					"subject": subject,
 					"document_type": "Local Payment",
 					"document_name": session_name,
 				}

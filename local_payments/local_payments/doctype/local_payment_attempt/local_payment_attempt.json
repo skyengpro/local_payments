@@ -20,6 +20,7 @@
   "last_checked_on",
   "next_check_on",
   "check_count",
+  "alerted",
   "integration_request",
   "section_break_provider",
   "provider_data"
@@ -40,7 +41,8 @@
    "label": "Status",
    "options": "Initiated\nPending\nSucceeded\nFailed\nExpired\nUnresolved\nError",
    "in_list_view": 1,
-   "read_only": 1
+   "read_only": 1,
+   "search_index": 1
   },
   {
    "fieldname": "provider_status",
@@ -122,6 +124,13 @@
    "fieldtype": "Int",
    "label": "Check Count",
    "read_only": 1
+  },
+  {
+   "fieldname": "alerted",
+   "fieldtype": "Check",
+   "label": "Alerted",
+   "read_only": 1,
+   "description": "Managers have been told this attempt stayed unresolved. Keeps the daily alert to one."
   },
   {
    "fieldname": "integration_request",

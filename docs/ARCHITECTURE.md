@@ -293,6 +293,8 @@ erDiagram
         Select authorization "empty, Pending, Done, Failed"
         Int authorization_tries "read-only"
         SmallText authorization_error "read-only"
+        Datetime authorization_next_retry_on "read-only, indexed"
+        Check authorization_alerted "managers told the authorization gave up"
         SmallText success_redirect "URL returned by on_payment_authorized"
     }
     LOCAL_PAYMENT_ATTEMPT["Local Payment Attempt"] {
@@ -311,6 +313,7 @@ erDiagram
         Datetime last_checked_on
         Datetime next_check_on "indexed"
         Int check_count
+        Check alerted "managers told this attempt stayed unresolved"
         Data integration_request "name only"
     }
     PAYMENT_GATEWAY["Payment Gateway - frappe/payments"]
@@ -430,11 +433,21 @@ documentation is received.
 
 ## Scheduled tasks
 
-| Frequency                  | Task                                                                                                                   |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due.                                                 |
-| Every hour                 | `Unresolved` attempts. `Pending` or `Failed` authorizations, with spaced-out retries.                            |
-| Every day                  | Alerts: attempts`Unresolved` for more than 72 hours, authorizations still failing after the maximum number of tries. |
+| Frequency                  | Task                                                                                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                              |
+| Every hour                 | `Unresolved` attempts whose `next_check_on` is due, until 72 hours after their deadline. `Pending` or `Failed` authorizations whose `authorization_next_retry_on` is due.            |
+| Every day                  | Alerts to `Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session still `Open`, authorizations still `Failed` after the maximum number of tries. |
+
+The jobs decide nothing. `reconcile()` writes the next due date each time it records an outcome:
+decreasing frequency for an `Unresolved` attempt, a doubling backoff for a failed authorization, and no
+date at all once an attempt is settled or an authorization has used up its tries. Each job is therefore a
+comparison on one indexed column, and selecting is the same thing as filtering: a job that read a batch and
+then dropped what is not due yet would let items that are never due crowd out the ones that are.
+
+Each run takes a bounded batch, oldest due date first, and processes items one at a time: an exception on
+one is logged in Error Log and the others still run. What a run does not reach is picked up by the next one.
+The two daily alerts are recorded by a flag on the row, so a repeat run selects nothing.
 
 ## Security and permissions
 
