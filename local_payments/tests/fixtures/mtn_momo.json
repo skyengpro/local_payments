@@ -1,0 +1,19 @@
+{
+ "_source": "Rebuilt from the examples in docs/openAPI/collection.json (MTN Collection OpenAPI), not captured from a live sandbox. The failed status with a plain string reason follows MTN's community announcement of 2024-01-30. Numbers are fake. Replace with sandbox captures when available.",
+ "token": {"status": 200, "body": {"access_token": "fake-access-token", "token_type": "access_token", "expires_in": 3600}},
+ "token_unauthorized": {"status": 401, "body": {"error": "login_failed"}},
+ "internal_error": {"status": 500, "body": {"code": "INTERNAL_PROCESSING_ERROR", "message": "An internal error occurred while processing."}},
+ "unauthorized": {"status": 401, "body": null},
+ "bad_request": {"status": 400, "body": null},
+ "requesttopay_accepted": {"status": 202, "body": null},
+ "requesttopay_duplicate": {"status": 409, "body": {"code": "RESOURCE_ALREADY_EXIST", "message": "Duplicated reference id. Creation of resource failed."}},
+ "status_successful": {"status": 200, "body": {"amount": "5000", "currency": "XAF", "financialTransactionId": "23503452", "externalId": "LPAY-2026-00001", "payer": {"partyIdType": "MSISDN", "partyId": "237000000001"}, "status": "SUCCESSFUL"}},
+ "status_successful_numbers": {"status": 200, "body": {"amount": 5000, "currency": "XAF", "financialTransactionId": 23503452, "externalId": "LPAY-2026-00001", "payer": {"partyIdType": "MSISDN", "partyId": 237000000001}, "status": "SUCCESSFUL"}},
+ "status_successful_sandbox": {"status": 200, "body": {"amount": "5000", "currency": "EUR", "financialTransactionId": "23503452", "externalId": "LPAY-2026-00001", "payer": {"partyIdType": "MSISDN", "partyId": "237000000001"}, "status": "SUCCESSFUL"}},
+ "status_pending": {"status": 200, "body": {"amount": "5000", "currency": "XAF", "externalId": "LPAY-2026-00001", "payer": {"partyIdType": "MSISDN", "partyId": "237000000001"}, "status": "PENDING"}},
+ "status_failed_reason_object": {"status": 200, "body": {"amount": "5000", "currency": "XAF", "externalId": "LPAY-2026-00001", "payer": {"partyIdType": "MSISDN", "partyId": "237000000001"}, "status": "FAILED", "reason": {"code": "PAYER_NOT_FOUND", "message": "Payee does not exist"}}},
+ "status_failed_reason_string": {"status": 200, "body": {"amount": "5000", "currency": "XAF", "externalId": "LPAY-2026-00001", "status": "FAILED", "reason": "NOT_ENOUGH_FUNDS"}},
+ "status_not_found": {"status": 404, "body": {"code": "RESOURCE_NOT_FOUND", "message": "Requested resource was not found."}},
+ "status_unknown_value": {"status": 200, "body": {"amount": "5000", "currency": "XAF", "status": "ONGOING"}},
+ "status_not_json": {"status": 200, "body": null}
+}

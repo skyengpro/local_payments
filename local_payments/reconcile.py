@@ -211,6 +211,8 @@ def _record(
 	row.duplicate = int(resolution.duplicate)
 	row.amount_mismatch = int(resolution.amount_mismatch)
 	row.next_check_on = _next_attempt_check(now, row)
+	if result.provider_status:
+		row.provider_status = result.provider_status
 	if result.status == lc.SUCCEEDED:
 		row.confirmed_amount = result.amount
 		row.confirmed_currency = result.currency
