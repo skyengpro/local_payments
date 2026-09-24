@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-09-24 14:45+0000\n"
-"PO-Revision-Date: 2026-09-24 14:45+0000\n"
+"POT-Creation-Date: 2026-09-24 15:18+0000\n"
+"PO-Revision-Date: 2026-09-24 15:18+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -32,7 +32,7 @@ msgstr ""
 msgid "API Base URL"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:36
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:44
 msgid "API Base URL must be an https:// address."
 msgstr ""
 
@@ -278,6 +278,10 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:33
+msgid "Gateway Name cannot be changed once saved."
+msgstr ""
+
 #. Description of the 'Token' (Data) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Guest access key. Generated on insert."
@@ -338,7 +342,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:42
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:50
 msgid "MSISDN National Length must be greater than zero."
 msgstr ""
 
@@ -347,7 +351,7 @@ msgstr ""
 msgid "MSISDN Prefix"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:40
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:48
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr ""
 
@@ -508,8 +512,8 @@ msgstr ""
 msgid "Pending Timeout (Minutes)"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:27
-msgid "Pending Timeout (Minutes) must be greater than zero."
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:56
+msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr ""
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'

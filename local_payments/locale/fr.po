@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-09-24 14:45+0000\n"
+"POT-Creation-Date: 2026-09-24 15:18+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -34,7 +34,7 @@ msgstr "API"
 msgid "API Base URL"
 msgstr "URL de base de l'API"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:36
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:44
 msgid "API Base URL must be an https:// address."
 msgstr "L'URL de base de l'API doit être une adresse https://."
 
@@ -280,6 +280,10 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:33
+msgid "Gateway Name cannot be changed once saved."
+msgstr "Le nom de la passerelle ne peut plus être modifié après l'enregistrement."
+
 #. Description of the 'Token' (Data) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Guest access key. Generated on insert."
@@ -340,7 +344,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr "Longueur du numéro national (MSISDN)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:42
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:50
 msgid "MSISDN National Length must be greater than zero."
 msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro."
 
@@ -349,7 +353,7 @@ msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro
 msgid "MSISDN Prefix"
 msgstr "Préfixe MSISDN"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:40
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:48
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 
@@ -510,9 +514,9 @@ msgstr ""
 msgid "Pending Timeout (Minutes)"
 msgstr "Délai d'attente (minutes)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:27
-msgid "Pending Timeout (Minutes) must be greater than zero."
-msgstr "Le délai d'attente (minutes) doit être supérieur à zéro."
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:56
+msgid "Pending Timeout (Minutes) cannot be negative."
+msgstr "Le délai d'attente (minutes) ne peut pas être négatif."
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json

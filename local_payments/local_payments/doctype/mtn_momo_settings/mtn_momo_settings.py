@@ -21,17 +21,24 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 	provider_name = "MTN MoMo"
 
 	def validate(self):
+		self.validate_gateway_name_unchanged()
 		self.validate_api_base_url()
 		self.validate_msisdn_format()
-		if cint(self.pending_timeout_minutes) <= 0:
-			frappe.throw(_("Pending Timeout (Minutes) must be greater than zero."))
+		self.set_pending_timeout()
+
+	def validate_gateway_name_unchanged(self):
+		# Without this, Frappe would silently put the document name back into gateway_name.
+		if not self.is_new() and self.gateway_name != self.name:
+			frappe.throw(
+				_("Gateway Name cannot be changed once saved."), exc=frappe.CannotChangeConstantError
+			)
 
 	def validate_api_base_url(self):
 		# validate() runs before Frappe's mandatory check, which reports a missing value itself.
 		if not self.api_base_url:
 			return
 		self.api_base_url = self.api_base_url.strip()
-		# The API user and key go out in a Basic auth header on every token request.
+		# Merchant credentials are sent to this URL.
 		url = urlsplit(self.api_base_url)
 		if url.scheme != "https" or not url.hostname:
 			frappe.throw(_("API Base URL must be an https:// address."))
@@ -41,3 +48,11 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("MSISDN Prefix must contain digits only, without + or 00."))
 		if cint(self.msisdn_national_length) <= 0:
 			frappe.throw(_("MSISDN National Length must be greater than zero."))
+
+	def set_pending_timeout(self):
+		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.
+		timeout = cint(self.pending_timeout_minutes)
+		if timeout < 0:
+			frappe.throw(_("Pending Timeout (Minutes) cannot be negative."))
+		if timeout == 0:
+			self.pending_timeout_minutes = cint(self.meta.get_field("pending_timeout_minutes").default)

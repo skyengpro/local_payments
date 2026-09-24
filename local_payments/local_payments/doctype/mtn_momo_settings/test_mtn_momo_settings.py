@@ -47,11 +47,21 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 		self.assertEqual((controller.doctype, controller.name), (SETTINGS, "momo-test"))
 
 	def test_gateway_name_cannot_change_after_insert(self):
-		# Frappe puts the name back into the autoname field on save, so the edit is dropped.
 		self.settings.gateway_name = "momo-renamed"
-		self.settings.save()
-		self.assertEqual(self.settings.reload().gateway_name, "momo-test")
+		with self.assertRaises(frappe.CannotChangeConstantError):
+			self.settings.save()
 		self.assertFalse(frappe.db.exists("Payment Gateway", "MTN MoMo-momo-renamed"))
+
+	def test_credentials_are_passwords_readable_by_system_manager_only(self):
+		meta = frappe.get_meta(SETTINGS)
+		for fieldname in ("subscription_key", "api_key"):
+			self.assertEqual(meta.get_field(fieldname).fieldtype, "Password", fieldname)
+		self.assertEqual({perm.role for perm in meta.permissions}, {"System Manager"})
+
+	def test_empty_pending_timeout_falls_back_to_the_default(self):
+		self.settings.pending_timeout_minutes = None
+		self.settings.save()
+		self.assertEqual(self.settings.reload().pending_timeout_minutes, 15)
 
 	def test_invalid_configuration_is_rejected_on_save(self):
 		cases = {
@@ -60,7 +70,7 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 			"prefix with plus": {"msisdn_prefix": "+237"},
 			"prefix with letters": {"msisdn_prefix": "23a"},
 			"zero national length": {"msisdn_national_length": 0},
-			"zero timeout": {"pending_timeout_minutes": 0},
+			"negative timeout": {"pending_timeout_minutes": -1},
 		}
 		for case, values in cases.items():
 			with self.subTest(case), self.assertRaises(frappe.ValidationError):
