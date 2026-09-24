@@ -99,9 +99,10 @@ def payer_status(session, attempt) -> dict:
 	}
 
 
-@frappe.whitelist(allow_guest=True, methods=["GET"])
-# One bucket per token, so one payer's tabs cannot spend another payer's budget, and one per address,
-# which is what bounds a caller trying a new token on every request.
+# The payer has no account, so this is guest by design: it only answers for a valid token.
+# One rate limit bucket per token, so one payer's tabs cannot spend another payer's budget, and one per
+# address, which is what bounds a caller trying a new token on every request.
+@frappe.whitelist(allow_guest=True, methods=["GET"])  # nosemgrep: guest-whitelisted-method
 @rate_limit(key="token", limit=POLLS_PER_TOKEN, seconds=60)
 @rate_limit(limit=POLLS_PER_ADDRESS, seconds=60)
 def get_status(token: str) -> dict:
