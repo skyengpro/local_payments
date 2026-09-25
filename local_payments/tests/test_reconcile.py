@@ -42,9 +42,10 @@ lock_probe = []
 def probe(doc, method, *args, **kwargs):
 	"""Consumer that checks, from a second connection, that the session row is locked."""
 	other = get_db(
+		socket=frappe.conf.db_socket,
 		host=frappe.conf.db_host,
 		port=frappe.conf.db_port,
-		user=frappe.conf.db_name,
+		user=frappe.conf.db_user,
 		password=frappe.conf.db_password,
 		cur_db_name=frappe.conf.db_name,
 	)
