@@ -19,6 +19,8 @@ GATEWAY_NAME = "lp-checkout"
 GATEWAY = "Local Payments Test-lp-checkout"
 PROVIDER = "Local Payments Test"
 PAGE = "local_payment_checkout"
+# The form element itself: the page script names the same id.
+FORM = 'id="lp-start-attempt"'
 
 UNKNOWN_TOKEN = "f" * 32
 MALFORMED_TOKENS = ("", "not-a-token", "F" * 32, "a" * 31, "a" * 33, "' or 1=1 --")
@@ -116,7 +118,7 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn(fmt_money(5000, 0, currency="XAF"), content)
 		self.assertIn("XAF", content)
 		self.assertIn(PROVIDER, content)
-		self.assertIn("lp-start-attempt", content)
+		self.assertIn(FORM, content)
 
 	def test_page_never_shows_the_session_name(self):
 		session = make_session()
@@ -128,14 +130,14 @@ class TestCheckoutPage(CheckoutTestCase):
 
 		self.assertIn("Payment received", content)
 		self.assertIn("/orders/42", content)
-		self.assertNotIn("lp-start-attempt", content)
+		self.assertNotIn(FORM, content)
 
 	def test_void_session_shows_its_outcome_instead_of_the_form(self):
 		session = make_session(status="Void")
 		content = self.render(session.token)
 
 		self.assertIn("Cancelled", content)
-		self.assertNotIn("lp-start-attempt", content)
+		self.assertNotIn(FORM, content)
 
 	def test_unknown_or_malformed_token_gets_a_not_found_page(self):
 		for token in (UNKNOWN_TOKEN, *MALFORMED_TOKENS):

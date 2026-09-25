@@ -2,24 +2,34 @@
 # For license information, please see license.txt
 
 import base64
+import json
 from unittest.mock import MagicMock, patch
 
 import frappe
 import requests
 from frappe.tests import IntegrationTestCase
+from frappe.utils import get_url
 from payments.utils import get_payment_gateway_controller
 
+from local_payments import lifecycle as lc
 from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import CacheTokenStore
 from local_payments.providers.mtn_momo import MtnMomoError
 
 SETTINGS = "MTN MoMo Settings"
 GATEWAY = "MTN MoMo-momo-test"
+ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
+MSISDN = "237000000001"
 
 
-def http_response(status, body):
-	response = MagicMock(status_code=status)
+def http_response(status, body=None):
+	response = MagicMock(status_code=status, text="" if body is None else json.dumps(body))
+	response.json.side_effect = None if body is not None else ValueError("no body")
 	response.json.return_value = body
 	return response
+
+
+def token_response():
+	return http_response(200, {"access_token": "fake-access-token", "expires_in": 3600})
 
 
 def make_settings(**overrides):
@@ -142,3 +152,101 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 				self.settings.update(values)
 				self.settings.save()
 			self.settings.reload()
+
+
+class TestInitiate(IntegrationTestCase):
+	@classmethod
+	def setUpClass(cls):
+		super().setUpClass()
+		if not frappe.db.exists("Currency", "XAF"):
+			frappe.get_doc({"doctype": "Currency", "currency_name": "XAF", "enabled": 1}).insert()
+
+	def setUp(self):
+		if frappe.db.exists("Payment Gateway", GATEWAY):
+			frappe.delete_doc("Payment Gateway", GATEWAY, force=True)
+		self.settings = make_settings()
+		self.addCleanup(CacheTokenStore().delete, self.settings.token_cache_key)
+		# The Integration Request links to the session, so it has to exist.
+		self.session = frappe.get_doc(
+			{
+				"doctype": "Local Payment",
+				"payment_gateway": GATEWAY,
+				"reference_doctype": "User",
+				"reference_docname": "Administrator",
+				"amount": 5000,
+				"currency": "XAF",
+			}
+		).insert(ignore_permissions=True)
+
+	def initiate(self, *replies, session=None):
+		session = session or self.session
+		CacheTokenStore().delete(self.settings.token_cache_key)
+		with patch("local_payments.providers.mtn_momo.requests.Session") as http:
+			http.return_value.request.side_effect = list(replies)
+			started = self.settings.initiate(ATTEMPT_ID, session, MSISDN)
+		return started, http.return_value.request
+
+	def test_each_mtn_answer_gives_the_attempt_status_and_log_status(self):
+		cases = {
+			"accepted": ([http_response(202)], lc.INITIATED, "Completed"),
+			"duplicate reference": (
+				[http_response(409, {"code": "RESOURCE_ALREADY_EXIST"})],
+				lc.INITIATED,
+				"Completed",
+			),
+			"server error": ([http_response(500)], lc.INITIATED, "Failed"),
+			"timeout": ([requests.ReadTimeout()], lc.INITIATED, "Failed"),
+			"rejected": ([http_response(400, {"code": "PAYER_NOT_FOUND"})], lc.ERROR, "Failed"),
+			"unauthorized": ([http_response(401), token_response(), http_response(401)], lc.ERROR, "Failed"),
+		}
+		for case, (replies, status, log_status) in cases.items():
+			with self.subTest(case):
+				started, _request = self.initiate(token_response(), *replies)
+				self.assertEqual(started.status, status)
+				self.assertEqual(
+					frappe.db.get_value("Integration Request", started.integration_request, "status"),
+					log_status,
+				)
+
+	def test_no_token_means_error_and_no_log(self):
+		started, request = self.initiate(requests.ConnectTimeout())
+		self.assertEqual((started.status, started.integration_request), (lc.ERROR, None))
+		self.assertEqual(request.call_count, 1)
+
+	def test_a_refused_request_is_logged_without_the_payer_number(self):
+		self.initiate(token_response(), http_response(400, {"code": "PAYER_NOT_FOUND"}))
+		message = frappe.get_last_doc(
+			"Error Log", filters={"method": "MTN MoMo payment request refused"}
+		).error
+		self.assertIn(ATTEMPT_ID, message)
+		self.assertIn("400, PAYER_NOT_FOUND", message)
+		self.assertNotIn(MSISDN, message)
+
+	def test_callback_url_carries_the_attempt_id_only_when_asked(self):
+		_started, request = self.initiate(token_response(), http_response(202))
+		headers = request.call_args_list[1].kwargs["headers"]
+		expected = get_url(f"/api/method/local_payments.api.mtn_momo_callback?attempt={ATTEMPT_ID}")
+		self.assertEqual(headers["X-Callback-Url"], expected)
+
+		self.settings.db_set("send_callback", 0)
+		_started, request = self.initiate(token_response(), http_response(202))
+		self.assertNotIn("X-Callback-Url", request.call_args_list[1].kwargs["headers"])
+
+	def test_the_log_holds_each_send_and_no_credential(self):
+		started, _request = self.initiate(
+			token_response(), http_response(401), token_response(), http_response(202)
+		)
+		log = frappe.get_doc("Integration Request", started.integration_request)
+		self.assertEqual((log.request_id, log.reference_docname), (ATTEMPT_ID, self.session.name))
+		self.assertEqual([sent["status_code"] for sent in json.loads(log.output)], [401, 202])
+		self.assertEqual(json.loads(log.data)["payer"]["partyId"], MSISDN)
+
+		logged = frappe.as_json(log.as_dict())
+		for secret in ("fake-api-key", "fake-subscription-key", "fake-access-token", "Authorization"):
+			with self.subTest(secret=secret):
+				self.assertNotIn(secret, logged)
+
+	def test_a_fractional_amount_is_an_error_before_any_call(self):
+		started, request = self.initiate(session=frappe._dict(name=self.session.name, amount=5000.5))
+		self.assertEqual((started.status, started.integration_request), (lc.ERROR, None))
+		request.assert_not_called()
