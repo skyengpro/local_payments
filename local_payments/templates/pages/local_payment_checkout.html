@@ -20,14 +20,16 @@
 	<p class="text-muted">{{ _("Payment by {0}").format(provider) }}</p>
 
 	{% if status == "Open" %}
-		<form id="lp-start-attempt" class="lp-form">
+		<form id="lp-start-attempt" class="lp-form {% if waiting %}hidden{% endif %}" novalidate
+			data-start-failed="{{ _('The payment request could not be sent. Check the number and try again.')|e }}"
+			data-empty-number="{{ _('Enter your mobile money number.')|e }}">
 			<div class="form-group">
 				<label for="lp-msisdn">{{ _("Mobile money number") }}</label>
 				<input type="tel" class="form-control" id="lp-msisdn" name="msisdn"
-					inputmode="numeric" autocomplete="tel" disabled>
+					inputmode="tel" autocomplete="tel" required aria-describedby="lp-msisdn-error">
+				<div class="invalid-feedback" id="lp-msisdn-error" aria-live="polite"></div>
 			</div>
-			<button type="submit" class="btn btn-primary btn-sm" disabled>{{ _("Pay") }}</button>
-			<p class="text-muted small">{{ _("Paying from this page is not open yet.") }}</p>
+			<button type="submit" class="btn btn-primary btn-sm">{{ _("Pay") }}</button>
 		</form>
 
 		<p id="lp-waiting" class="text-muted {% if not waiting %}hidden{% endif %}">
@@ -61,49 +63,108 @@
 <script>
 	frappe.ready(() => {
 		const card = document.getElementById("lp-checkout");
-		if (!card || card.dataset.waiting !== "1") return;
+		if (!card) return;
 
 		const INTERVAL = 5000;
 		const MAX_POLLS = 120;
 		const IN_FLIGHT = ["Initiated", "Pending", "Unresolved"];
-		let polls = 0;
 
 		const show = (id, visible) => {
 			document.getElementById(id)?.classList.toggle("hidden", !visible);
 		};
 
-		const again = () => {
-			if (polls < MAX_POLLS) {
-				setTimeout(poll, INTERVAL);
+		const startPolling = () => {
+			let polls = 0;
+
+			const again = () => {
+				if (polls < MAX_POLLS) {
+					setTimeout(poll, INTERVAL);
+					return;
+				}
+				// Out of budget: say so instead of leaving the payer on a page that no longer moves.
+				show("lp-waiting", false);
+				show("lp-gave-up", true);
+			};
+
+			const poll = () => {
+				polls += 1;
+				frappe.call({
+					method: "local_payments.api.get_status",
+					type: "GET",
+					args: { token: card.dataset.token },
+					callback: (response) => {
+						const state = response.message || {};
+						if (state.redirect_url) {
+							window.location.href = state.redirect_url;
+						} else if (state.status === "Open" && IN_FLIGHT.includes(state.attempt_status)) {
+							again();
+						} else {
+							// Nothing is running any more: reload to show where the payment ended up.
+							window.location.reload();
+						}
+					},
+					error: again,
+				});
+			};
+
+			setTimeout(poll, INTERVAL);
+		};
+
+		if (card.dataset.waiting === "1") startPolling();
+
+		const form = document.getElementById("lp-start-attempt");
+		if (!form) return;
+		const field = document.getElementById("lp-msisdn");
+		const feedback = document.getElementById("lp-msisdn-error");
+		const button = form.querySelector("button[type=submit]");
+
+		const showError = (message) => {
+			feedback.textContent = message || form.dataset.startFailed;
+			field.classList.add("is-invalid");
+			field.setAttribute("aria-invalid", "true");
+		};
+
+		// The server's own message, e.g. a malformed number. Anything else gets the generic one.
+		const serverMessage = (r) => {
+			try {
+				return JSON.parse(JSON.parse(r._server_messages)[0]).message;
+			} catch (e) {
+				return null;
+			}
+		};
+
+		form.addEventListener("submit", (event) => {
+			event.preventDefault();
+			field.classList.remove("is-invalid");
+			field.removeAttribute("aria-invalid");
+			// An empty field would only spend the payer's start budget.
+			if (!field.value.trim()) {
+				showError(form.dataset.emptyNumber);
 				return;
 			}
-			// Out of budget: say so instead of leaving the payer on a page that no longer moves.
-			show("lp-waiting", false);
-			show("lp-gave-up", true);
-		};
-
-		const poll = () => {
-			polls += 1;
+			button.disabled = true;
 			frappe.call({
-				method: "local_payments.api.get_status",
-				type: "GET",
-				args: { token: card.dataset.token },
+				method: "local_payments.api.start_attempt",
+				type: "POST",
+				args: { token: card.dataset.token, msisdn: field.value },
+				// Errors go under the field, not in a dialog.
+				silent: true,
 				callback: (response) => {
 					const state = response.message || {};
-					if (state.redirect_url) {
-						window.location.href = state.redirect_url;
-					} else if (state.status === "Open" && IN_FLIGHT.includes(state.attempt_status)) {
-						again();
+					if (IN_FLIGHT.includes(state.attempt_status)) {
+						show("lp-start-attempt", false);
+						show("lp-waiting", true);
+						startPolling();
 					} else {
-						// Nothing is running any more: reload to show where the payment ended up.
-						window.location.reload();
+						showError();
 					}
 				},
-				error: again,
+				error: (r) => showError(serverMessage(r)),
+				always: () => {
+					button.disabled = false;
+				},
 			});
-		};
-
-		setTimeout(poll, INTERVAL);
+		});
 	});
 </script>
 {% endblock %}

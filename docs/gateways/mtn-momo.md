@@ -77,7 +77,9 @@ leaves the attempt status to its caller.
 | MTN response | Attempt status | Note |
 | --- | --- | --- |
 | `202` on RequestToPay | `Initiated` | Request accepted, queued at MTN. |
-| Timeout or `5xx` error on RequestToPay | `Initiated` | The identifier is known before the call: the status remains queryable. |
+| `409` on RequestToPay | `Initiated` | The `X-Reference-Id` already exists at MTN. The page goes straight to status polling. |
+| Timeout or `5xx` error on RequestToPay | `Initiated` | The attempt is committed before the call: the status remains queryable. |
+| `400`, or `401` after the token renewal, on RequestToPay | `Error` | MTN created nothing. Logged in Error Log. The payer can try again. |
 | No token could be obtained before RequestToPay | `Error` | The request never left. The payer can try again. |
 | `PENDING` | `Pending` | Waiting for the payer's approval. |
 | `SUCCESSFUL` | `Succeeded` | Amount and currency compared to the session. |
@@ -149,12 +151,37 @@ sequenceDiagram
   MTN does not publish the characters it refuses, so accents are dropped
   and anything other than letters, digits, spaces and `. , - _ : /` becomes
   a space (the apostrophe included).
-- **MSISDN.** Digits only: country code, then national number, with no `+`
-  or `00`. A number outside the format is rejected before any call.
+- **MSISDN.** Sent as digits only: country code, then national number, with
+  no `+` or `00`. The page accepts what payers usually type: spaces, `.`,
+  `-` and brackets are dropped, then a leading `+` or `00`, and the national
+  number alone gets the country code. Anything else is rejected before an
+  attempt is created or any call is made.
 - **Callback.** MTN sends it once and does not resend it if there is no
-  response. It carries no secret. The URL contains the `attempt_id`. The
-  callback triggers a query, under `rate_limit` and within the minimum
-  interval per attempt.
+  response. It carries no secret and its body is never read. `X-Callback-Url`
+  is sent only when `send_callback` is checked, and carries the `attempt_id`,
+  never the session token, which opens the checkout page. For an attempt
+  still `Initiated`, `Pending` or `Unresolved`, the callback queues
+  `reconcile()` in a background job, one job at a time per attempt. Any other
+  call gets the same empty answer, with no outgoing call. The `attempt_id` is
+  read from the query string: MTN's JSON body replaces the request arguments
+  in Frappe. `rate_limit` applies per address, with a wide budget because MTN
+  calls from a few addresses. Per attempt, the job deduplication and the
+  minimum interval bound the work.
+- **Initiation window.** A new attempt gets its first check date two minutes
+  ahead, longer than RequestToPay can take with a token renewal. Until MTN
+  has answered, no status query goes out for it, from another tab, the
+  callback or the scheduler: MTN could answer `404` for a request still on
+  its way, which would read as `Failed`. Once MTN answers, the date is
+  brought forward to now. If the process dies during the call, the attempt
+  is checked when the window ends. A callback that arrives before MTN's
+  answer to RequestToPay is dropped by that rule; the page polling and the
+  scheduler, which see the date brought forward, check the attempt instead.
+- **Network log.** One `Integration Request` per attempt, named on the
+  attempt: the RequestToPay URL, the headers sent except `Authorization` and
+  `Ocp-Apim-Subscription-Key`, the body, and MTN's status code and body for
+  each send (two after a token renewal), cut at 2,000 characters. The token
+  request is never logged. `Completed` when MTN holds the request (`202` or
+  `409`), `Failed` otherwise.
 - **Waiting on the page.** The page calls `get_status()` every 5 seconds. The
   server queries MTN only once per 5-second interval and per attempt,
   regardless of how many tabs are open.
@@ -169,8 +196,8 @@ sequenceDiagram
 
 | HTTP code | Meaning | Handling |
 | --- | --- | --- |
-| `400` | Non-compliant request: headers, invalid UUID, refused characters, currency different from the target environment, text over 160 characters | Attempt `Error`. Alert if the cause is configuration. |
-| `401` | Invalid subscription key or token | Token renewal, then a single retry. Otherwise attempt `Error` and alert. |
+| `400` | Non-compliant request: headers, invalid UUID, refused characters, currency different from the target environment, text over 160 characters | Attempt `Error`. Error Log entry with the MTN code, without the payer's number. No alert. |
+| `401` | Invalid subscription key or token | Token renewal, then a single retry. Otherwise attempt `Error` and Error Log entry. No alert. |
 | `404` on status | Unknown reference: the request did not go through | Attempt `Failed`. |
 | `409` | `X-Reference-Id` already used | Move to status polling. |
 | `5xx` or timeout | Unavailability | Attempt `Initiated`, query scheduled. |

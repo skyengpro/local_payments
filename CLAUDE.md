@@ -1,4 +1,3 @@
-
 # local_payments
 
 Frappe app that adds Cameroon mobile-money gateways (MTN MoMo first, then Orange Money
@@ -32,21 +31,16 @@ Read before touching:
 ## Layout
 
 Pure core (no `frappe` import, enforced by CI): `providers/`, `lifecycle.py`.
-Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `scheduler.py`,
-`templates/pages/local_payment_checkout`. Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
+Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `scheduler.py`,`templates/pages/local_payment_checkout`. 
+
+Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
 `Local Payment`, `Local Payment Attempt` (child table).
 
 ## Invariants (never break; details in ARCHITECTURE)
 
-1. `get_payment_url()` creates a `Local Payment` session and returns the checkout URL. It never
-   calls a provider. GET on the checkout page has no side effect; only POST `start_attempt`
-   starts an attempt (D2).
-2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page
-   polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback
-   body or URL parameter (D3).
-3. Record, then act. Session -> `Paid` is committed in its own transaction. `on_payment_authorized`
-   runs in a second transaction under a row lock (`frappe.get_doc(..., for_update=True)`). If it
-   fails: `authorization = Failed`, `Paid` stays (D4).
+1. `get_payment_url()` creates a `Local Payment` session and returns the checkout URL. It never calls a provider. GET on the checkout page has no side effect; only POST `start_attempt` starts an attempt (D2).
+2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback body or URL parameter (D3).
+3. Record, then act. Session -> `Paid` is committed in its own transaction. `on_payment_authorized` runs in a second transaction under a row lock (`frappe.get_doc(..., for_update=True)`). If it fails: `authorization = Failed`, `Paid` stays (D4).
 4. Consumer callbacks can be replayed and run as Guest, user or Administrator: idempotent, no
    dependence on `frappe.session.user`.
 5. Provider-confirmed amount and currency are compared with the session. Mismatch ->
@@ -62,23 +56,18 @@ Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `schedule
 
 ## Frappe rules
 
-- No `frappe.db.commit()` in controllers or hooks. Explicit commits only where D4 requires them
-  (`reconcile.py`).
+- No `frappe.db.commit()` in controllers or hooks. Explicit commits only where D4 requires them (`reconcile.py`), and in `api._open_attempt`, which commits the new attempt before the provider call.
 - `Local Payments Manager` and any other role ship as fixtures or patches, never hand-configured.
 - Deliverables are app code. No Server Scripts, no Client Scripts created in the desk.
-- Code must work on v15 and v16. When an API differs, check both branches and say which.
+- Code must work on v16.
 
 ## Method
 
-- **Don't reinvent.** Before adding a helper, search `frappe`, `erpnext`, `payments` for it. State
-  what exists and the specific limit that blocks reuse. Installed sources are readable through
-  `additionalDirectories` (`.claude/settings.json`).
+- **Don't reinvent.** Before adding a helper, search `frappe`, `erpnext`, `payments` for it. State what exists and the specific limit that blocks reuse. Installed sources are readable through `additionalDirectories` (`.claude/settings.json`).
 - **Verify version-sensitive APIs in source, not in a skill or from memory.** Known case: the
-  community skill `frappe-core-cache` teaches `frappe.lock()`, which does not exist in v15 or v16
-  (use row locks or `frappe.utils.synchronization.filelock`). Cite the file you checked.
+  community skill `frappe-core-cache` teaches `frappe.lock()`, which does not exist in v15 or v16 (use row locks or `frappe.utils.synchronization.filelock`). Cite the file you checked.
 - **Context7** for third-party library docs. Not for Frappe internals: read the source.
-- **Never guess provider behaviour.** Unknown Orange Money endpoints, schemas, statuses, ID format:
-  stop and list what is missing (`gateways/orange-money.md`, table "Ce qu'il faut obtenir").
+- **Never guess provider behaviour.** Unknown Orange Money endpoints, schemas, statuses, ID format: stop and list what is missing (`gateways/orange-money.md`, table "Ce qu'il faut obtenir").
   MTN "points à confirmer" stay configuration, not hard-coded assumptions.
 - **Small scope first**: one gateway, one consumer (Payment Request), one site, then generalise.
 - Tests: pure core with recorded HTTP responses, no live provider call, no real MSISDN

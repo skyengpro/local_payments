@@ -265,10 +265,14 @@ Reused without modification: `Payment Gateway` (`frappe/payments`),
 `Integration Request` (Frappe), `Payment Gateway Account` (ERPNext).
 
 `Integration Request` serves as the network log: one row per attempt, with
-the raw request and response. Frappe purges it after 90 days by default
-(Log Settings). The attempt is therefore linked to it only by name, with no
-`Link`, and the durable proof (transaction identifier, confirmed amount,
-final status) is carried by the attempt itself.
+the initiation request as sent and the provider's answer to each send (two
+after a token renewal). Headers that carry credentials and the token request
+are never logged. Status queries are not logged there: their outcome is on
+the attempt (`provider_status`), their failures in Error Log. Frappe purges
+it after 90 days by default (Log Settings). The attempt is therefore linked
+to it only by name, with no `Link`, and the durable proof (transaction
+identifier, confirmed amount, final status) is carried by the attempt
+itself.
 
 ```mermaid
 erDiagram
@@ -338,8 +342,8 @@ kept in `request_data` and is never transmitted to the provider.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Initiated : initiation accepted or result unknown
-    [*] --> Error : initiation rejected, no transaction created
+    [*] --> Initiated : recorded before the initiation call
+    Initiated --> Error : initiation rejected, no transaction created
     Initiated --> Pending
     Initiated --> Succeeded
     Initiated --> Failed
@@ -357,6 +361,15 @@ stateDiagram-v2
     Expired --> [*]
     Error --> [*]
 ```
+
+An attempt is saved as `Initiated`, and committed, before the initiation call,
+so a timeout or a crash still leaves an `attempt_id` that can be queried.
+No trigger queries it before its first check date, set past the longest
+initiation call and brought forward once the provider has answered: a status
+query sent before the provider has seen the request could read as `Failed`.
+`Initiated` stays when the provider accepts the request or when the outcome
+is unknown. `Error` is decided locally when the provider refuses it: no
+status check ever reports it.
 
 `Unresolved` means the local deadline has passed while the provider has not
 returned a final state. The attempt keeps being queried at a decreasing
@@ -422,9 +435,9 @@ payment. The PayPal and Razorpay gateways also populate
 | Entry point                                                | Method    | Access                     | Effect                                                                                           |
 | ---------------------------------------------------------- | --------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
 | `/local_payment_checkout?token=…`                       | GET       | guest                      | Displays the session. No side effect.                                                            |
-| `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Creates an attempt and calls initiation. Returns the waiting state.                              |
+| `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Checks the number, creates an attempt and calls initiation. Returns the same state as `get_status`. |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL. |
-| `local_payments.api.mtn_momo_callback(attempt)`          | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`.                                                                           |
+| `local_payments.api.mtn_momo_callback?attempt=…`         | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
 | `Local Payment` form: Check, Retry authorization, Cancel | button    | `Local Payments Manager` | Support actions.                                                                                 |
 
 The entry point specific to Orange Money Local/USSD (callback or
@@ -479,7 +492,8 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 - A callback for an unknown attempt is ignored, with no outgoing call.
 - A phone number outside the configured country's format is rejected
   before any call.
-- An attempt on a `Paid` or `Void` session is rejected.
+- An attempt on a `Paid` or `Void` session, or through a disabled gateway,
+  is rejected.
 - A new attempt is rejected as long as another one is `Initiated` or
   `Pending`.
 - A success whose amount or currency differs from the session does not

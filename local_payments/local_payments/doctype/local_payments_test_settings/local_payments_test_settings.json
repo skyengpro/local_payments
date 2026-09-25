@@ -8,7 +8,10 @@
  "field_order": [
   "gateway_name",
   "enabled",
-  "currency"
+  "currency",
+  "msisdn_prefix",
+  "msisdn_national_length",
+  "pending_timeout_minutes"
  ],
  "fields": [
   {
@@ -31,11 +34,29 @@
    "label": "Currency",
    "options": "Currency",
    "reqd": 1
+  },
+  {
+   "default": "237",
+   "fieldname": "msisdn_prefix",
+   "fieldtype": "Data",
+   "label": "MSISDN Prefix"
+  },
+  {
+   "default": "9",
+   "fieldname": "msisdn_national_length",
+   "fieldtype": "Int",
+   "label": "MSISDN National Length"
+  },
+  {
+   "default": "15",
+   "fieldname": "pending_timeout_minutes",
+   "fieldtype": "Int",
+   "label": "Pending Timeout (Minutes)"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-24 00:00:00.000000",
+ "modified": "2026-09-25 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Local Payments Test Settings",

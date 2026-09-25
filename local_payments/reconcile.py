@@ -36,11 +36,19 @@ MIN_CHECK_INTERVAL = timedelta(seconds=10)
 # Attempts still worth asking the provider about. Unresolved ones can still succeed late.
 CHECKABLE_STATES = (lc.INITIATED, lc.PENDING, lc.UNRESOLVED)
 
+# How far start_attempt sets a new attempt's first check date: longer than the initiation can take (two
+# token requests and two sends after a 401). Asked earlier, the provider could answer 404 for a request
+# still on its way, which would read as Failed.
+#
+# start_attempt brings the date forward as soon as the provider has answered.
+INITIATION_WINDOW = timedelta(minutes=2)
+
 AUTH_PENDING = "Pending"
 AUTH_DONE = "Done"
 AUTH_FAILED = "Failed"
 
-# When the scheduler may look at something again. reconcile() owns these dates: it writes next_check_on
+# When the scheduler may look at something again. Apart from an attempt's first check date (see
+# INITIATION_WINDOW), reconcile() owns these dates: it writes next_check_on
 # and authorization_next_retry_on every time it records an outcome, so every scheduler query is a plain
 # comparison on one indexed column (ARCHITECTURE, "Scheduled tasks").
 #
@@ -61,6 +69,11 @@ AUTHORIZATION_RETRY_CAP = timedelta(hours=24)
 MAX_AUTHORIZATION_TRIES = 5
 
 SAVEPOINT = "lp_authorize"
+
+
+def before_first_check(check_count, next_check_on, now=None) -> bool:
+	"""True while a never-checked attempt is not due yet: its initiation may still be running."""
+	return not check_count and bool(next_check_on) and (now or now_datetime()) < get_datetime(next_check_on)
 
 
 def check_interval_elapsed(last_checked_on, now=None) -> bool:
@@ -115,7 +128,8 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 
 	Returns what was decided, including "no change" when the provider still says Pending. Returns None
 	when the provider was not asked or its answer was not applied: unknown attempt, attempt already
-	settled, checked too recently, or settled by another trigger while the provider was answering.
+	settled, checked too recently, not yet due for its first check, or settled by another trigger while
+	the provider was answering.
 	`provider` defaults to the Settings document of the session's gateway.
 	"""
 	claimed = _claim(attempt_id)
@@ -176,7 +190,11 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 
 	session = frappe.get_doc("Local Payment", session_name, for_update=True)
 	row = _attempt_row(session, attempt_id)
-	if row.status not in CHECKABLE_STATES or not check_interval_elapsed(row.last_checked_on, now):
+	if (
+		row.status not in CHECKABLE_STATES
+		or not check_interval_elapsed(row.last_checked_on, now)
+		or before_first_check(row.check_count, row.next_check_on, now)
+	):
 		frappe.db.rollback()  # nothing to keep, release the row lock
 		return None
 

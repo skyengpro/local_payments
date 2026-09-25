@@ -3,10 +3,12 @@
 
 """The frappe/payments contract shared by every Settings doctype of this app.
 
-A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name`, and has the fields
-`gateway_name`, `enabled` and `currency`. Nothing provider-specific belongs in this file.
+A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name`, implements `check_status` and
+`initiate`, and has the fields `gateway_name`, `enabled`, `currency`, `msisdn_prefix`,
+`msisdn_national_length` and `pending_timeout_minutes`. Nothing provider-specific belongs in this file.
 """
 
+from dataclasses import dataclass
 from math import isfinite
 from urllib.parse import urlencode
 
@@ -16,6 +18,7 @@ from frappe.utils import call_hook_method, cint, flt, get_url
 from payments.utils import create_payment_gateway
 
 from local_payments.lifecycle import ProviderResult
+from local_payments.providers.msisdn import normalize_msisdn
 
 CHECKOUT_PAGE = "local_payment_checkout"
 
@@ -28,6 +31,14 @@ ZERO_DECIMAL_CURRENCIES = frozenset(
 
 # Consumer fields copied onto the session. Everything else only lives in request_data.
 SESSION_FIELDS = ("title", "description", "payer_name", "payer_email", "redirect_to")
+
+
+@dataclass(frozen=True)
+class Initiated:
+	"""What starting an attempt did: the attempt's status, and the Integration Request of the exchange."""
+
+	status: str
+	integration_request: str | None = None
 
 
 def validate_amount_for_currency(amount, currency: str) -> None:
@@ -59,6 +70,23 @@ class LocalPaymentGateway:
 	def check_status(self, attempt_id: str, provider_data: dict) -> ProviderResult:
 		"""Ask the provider about one attempt. Each provider's Settings doctype implements this."""
 		raise NotImplementedError
+
+	def initiate(self, attempt_id: str, session, msisdn: str) -> Initiated:
+		"""Send the payment request for an attempt already saved as Initiated.
+
+		Each provider's Settings doctype implements this. `msisdn` comes from `payer_msisdn()`.
+		"""
+		raise NotImplementedError
+
+	def payer_msisdn(self, number) -> str:
+		"""The payer's number as providers expect it. Raises a ValidationError the page shows under the field."""
+		prefix, length = self.msisdn_prefix, cint(self.msisdn_national_length)
+		msisdn = normalize_msisdn(number, prefix, length)
+		if not msisdn:
+			frappe.throw(
+				_("Enter your mobile money number: {0} digits, with or without +{1}.").format(length, prefix)
+			)
+		return msisdn
 
 	def validate_transaction_currency(self, currency):
 		if currency != self.currency:
