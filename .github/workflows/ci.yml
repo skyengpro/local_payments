@@ -90,7 +90,9 @@ jobs:
           # local_payments implements the frappe/payments gateway contract
           # it is a hard dependency, not optional.
           #
-          bench get-app payments --branch develop
+          bench get-app payments --branch version-16
+          # pinned SHA of payments version-16: reproducible, known rollback point
+          git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
           bench get-app local_payments "$GITHUB_WORKSPACE"
           bench setup requirements --dev
 

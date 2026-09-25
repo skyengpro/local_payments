@@ -21,5 +21,5 @@ paths:
 - `erpnext.py` hook (ADR 0002), in this order: skip if the gateway is not ours; skip unless status
   is `Authorized` or `Completed`; re-read the Payment Request with `for_update` and skip if already
   `Paid`; then `doc.set_as_paid()`. Inactive when ERPNext is not installed.
-- Check `set_as_paid()` and `Payment Request` behaviour in the installed erpnext source for both v15
-  and v16 before changing any of this.
+- Check `set_as_paid()` and `Payment Request` behaviour in the installed erpnext source in the
+  installed v16 source before changing any of this.
