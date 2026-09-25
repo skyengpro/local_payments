@@ -26,7 +26,8 @@ PAID = "Paid"
 VOID = "Void"
 
 ATTEMPT_TRANSITIONS: dict[str, frozenset[str]] = {
-	INITIATED: frozenset({PENDING, SUCCEEDED, FAILED, EXPIRED, UNRESOLVED}),
+	# Error is decided locally, when the provider refuses the initiation. A status check never reports it.
+	INITIATED: frozenset({PENDING, SUCCEEDED, FAILED, EXPIRED, UNRESOLVED, ERROR}),
 	PENDING: frozenset({SUCCEEDED, FAILED, EXPIRED, UNRESOLVED}),
 	UNRESOLVED: frozenset({SUCCEEDED, FAILED, EXPIRED}),
 	SUCCEEDED: frozenset(),

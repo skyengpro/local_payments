@@ -43,6 +43,10 @@ class FakeResponse:
 		self.status_code = status
 		self.body = body
 
+	@property
+	def text(self):
+		return "" if self.body is None else json.dumps(self.body)
+
 	def json(self):
 		if self.body is None:
 			raise requests.JSONDecodeError("Expecting value", "", 0)
@@ -92,9 +96,10 @@ class MemoryTokenStore:
 		self.tokens.pop(key, None)
 
 
-def client(*replies, token="cached-token", config=CONFIG):
+def client(*replies, token="cached-token", config=CONFIG, on_exchange=None):
 	http = FakeHttp(*replies)
-	return MtnMomoClient(config, MemoryTokenStore(token), "key", http=http), http
+	mtn = MtnMomoClient(config, MemoryTokenStore(token), "key", http=http, on_exchange=on_exchange)
+	return mtn, http
 
 
 def pay(mtn, **overrides):
@@ -292,6 +297,60 @@ class TestCheckStatus(unittest.TestCase):
 	def test_production_currency_is_passed_through_for_lifecycle_to_compare(self):
 		mtn, _http = client(recorded("status_successful_sandbox"))
 		self.assertEqual(mtn.check_status(ATTEMPT_ID).currency, "EUR")
+
+
+class TestExchangeLog(unittest.TestCase):
+	def test_every_send_is_reported_and_the_token_request_never_is(self):
+		exchanges = []
+		mtn, _http = client(
+			recorded("unauthorized"),
+			recorded("token"),
+			recorded("requesttopay_accepted"),
+			on_exchange=exchanges.append,
+		)
+		pay(mtn, callback_url="https://example.com/callback")
+
+		self.assertEqual([exchange.status_code for exchange in exchanges], [401, 202])
+		first = exchanges[0]
+		self.assertEqual(first.method, "POST")
+		self.assertEqual(first.url, "https://sandbox.momodeveloper.mtn.com/collection/v1_0/requesttopay")
+		self.assertEqual(
+			first.request_headers,
+			{
+				"X-Target-Environment": "mtncameroon",
+				"X-Reference-Id": ATTEMPT_ID,
+				"X-Callback-Url": "https://example.com/callback",
+			},
+		)
+		self.assertEqual(first.request_body["payer"]["partyId"], MSISDN)
+		self.assertIsNone(first.response_body)
+
+	def test_no_credential_reaches_the_log(self):
+		exchanges = []
+		mtn, _http = client(
+			recorded("token"), recorded("requesttopay_accepted"), token=None, on_exchange=exchanges.append
+		)
+		pay(mtn)
+
+		logged = repr(exchanges)
+		for secret in ("fake-subscription-key", "fake-api-key", "fake-access-token", "Authorization"):
+			with self.subTest(secret=secret):
+				self.assertNotIn(secret, logged)
+
+	def test_a_call_with_no_response_is_reported_with_its_error(self):
+		exchanges = []
+		mtn, _http = client(requests.ReadTimeout(), on_exchange=exchanges.append)
+		self.assertEqual(pay(mtn).outcome, InitiationOutcome.UNKNOWN)
+
+		(exchange,) = exchanges
+		self.assertEqual(exchange.error, "ReadTimeout")
+		self.assertIsNone(exchange.status_code)
+
+	def test_a_long_answer_is_cut(self):
+		exchanges = []
+		mtn, _http = client(FakeResponse(500, {"message": "x" * 5000}), on_exchange=exchanges.append)
+		pay(mtn)
+		self.assertEqual(len(exchanges[0].response_body), 2000)
 
 
 class TestCleanText(unittest.TestCase):

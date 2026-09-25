@@ -10,6 +10,7 @@ No frappe import. The caller passes the contract's configuration and a token sto
 import base64
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
@@ -20,6 +21,7 @@ import requests
 
 from local_payments import lifecycle as lc
 from local_payments.lifecycle import ProviderResult
+from local_payments.providers.msisdn import normalize_msisdn
 
 # The sandbox only accepts EUR, whatever the contract's currency.
 SANDBOX_CURRENCY = "EUR"
@@ -28,6 +30,8 @@ TOKEN_EXPIRY_MARGIN = 60
 TEXT_MAX_LENGTH = 160
 # Length of the provider_status column on the attempt.
 PROVIDER_STATUS_MAX_LENGTH = 140
+# Enough for MTN's error code and message. A proxy's HTML error page is cut.
+RESPONSE_LOG_MAX_LENGTH = 2000
 # Connect, read, in seconds. Just over a multiple of 3 s, TCP's retransmission window, as requests advises.
 DEFAULT_TIMEOUT = (6.05, 15)
 
@@ -76,6 +80,23 @@ class Initiation:
 
 
 @dataclass(frozen=True)
+class Exchange:
+	"""One API call as sent and as answered, for the caller's network log.
+
+	The headers that carry credentials (Authorization, Ocp-Apim-Subscription-Key) are never in it.
+	"""
+
+	method: str
+	url: str
+	request_headers: dict
+	request_body: dict | None
+	status_code: int | None = None
+	response_body: str | None = None
+	# The exception's name when no response came back, e.g. "ReadTimeout".
+	error: str | None = None
+
+
+@dataclass(frozen=True)
 class MtnMomoConfig:
 	api_base_url: str
 	target_environment: str
@@ -116,12 +137,15 @@ class MtnMomoClient:
 		cache_key: str,
 		http: requests.Session | None = None,
 		timeout=DEFAULT_TIMEOUT,
+		on_exchange: Callable[[Exchange], None] | None = None,
 	):
 		self.config = config
 		self.token_store = token_store
 		self.cache_key = cache_key
 		self.http = http or requests.Session()
 		self.timeout = timeout
+		# Told about every API call except the token request, whose answer is a credential.
+		self.on_exchange = on_exchange
 
 	def request_to_pay(
 		self,
@@ -196,7 +220,8 @@ class MtnMomoClient:
 	def validate_msisdn(self, msisdn: str) -> str:
 		"""Country code then national number, ASCII digits only."""
 		prefix, length = self.config.msisdn_prefix, self.config.msisdn_national_length
-		if not re.fullmatch(rf"{re.escape(prefix)}[0-9]{{{length}}}", msisdn or ""):
+		# Already in shape: normalizing gives the same number back.
+		if not msisdn or normalize_msisdn(msisdn, prefix, length) != msisdn:
 			# The number itself stays out of the message: it is personal data.
 			raise InvalidRequest(f"The phone number must be {prefix} followed by {length} digits.")
 		return msisdn
@@ -226,22 +251,43 @@ class MtnMomoClient:
 
 	def _call(self, method: str, path: str, headers: dict, body: dict | None = None):
 		"""Send one API call, renewing the token and retrying once on a 401."""
+		url = self._url(path)
+		# Everything sent except the credentials, which is what may be logged.
+		loggable = {"X-Target-Environment": self.config.target_environment, **headers}
 		for renew in (False, True):
-			response = self.http.request(
-				method,
-				self._url(path),
-				headers={
-					"Authorization": f"Bearer {self._token(renew)}",
-					"Ocp-Apim-Subscription-Key": self.config.subscription_key,
-					"X-Target-Environment": self.config.target_environment,
-					**headers,
-				},
-				json=body,
-				timeout=self.timeout,
+			token = self._token(renew)
+			try:
+				response = self.http.request(
+					method,
+					url,
+					headers={
+						"Authorization": f"Bearer {token}",
+						"Ocp-Apim-Subscription-Key": self.config.subscription_key,
+						**loggable,
+					},
+					json=body,
+					timeout=self.timeout,
+				)
+			except requests.RequestException as exc:
+				self._report(Exchange(method, url, loggable, body, error=type(exc).__name__))
+				raise
+			self._report(
+				Exchange(
+					method,
+					url,
+					loggable,
+					body,
+					response.status_code,
+					response.text[:RESPONSE_LOG_MAX_LENGTH] or None,
+				)
 			)
 			if response.status_code != 401:
 				return response
 		raise _Unauthorized
+
+	def _report(self, exchange: Exchange) -> None:
+		if self.on_exchange:
+			self.on_exchange(exchange)
 
 	def _token(self, renew: bool) -> str:
 		if renew:

@@ -1,7 +1,7 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
-"""Endpoints the payer's browser reaches, and the read model the checkout page shares with them.
+"""Guest endpoints: the payer's browser (`start_attempt`, `get_status`) and MTN's callback.
 
 A payer holds a token and nothing else: every lookup starts from it, and the session's sequential
 name never leaves this module. `Local Payment` is readable by managers only, so these reads go
@@ -9,16 +9,20 @@ through `frappe.db`, which checks no permission.
 """
 
 import re
+import uuid
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import frappe
 from frappe import _
 from frappe.model.base_document import get_controller
 from frappe.rate_limiter import rate_limit
-from frappe.utils import get_url
+from frappe.utils import cint, get_url, now_datetime
+from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
+from local_payments.gateway import Initiated
 
 # The session's `before_insert` fills the token with frappe.generate_hash(length=32), which is hex.
 TOKEN_PATTERN = re.compile(r"\A[0-9a-f]{32}\Z")
@@ -36,7 +40,7 @@ SESSION_FIELDS = (
 	"reference_docname",
 )
 
-ATTEMPT_FIELDS = ("attempt_id", "status", "last_checked_on")
+ATTEMPT_FIELDS = ("attempt_id", "status", "last_checked_on", "check_count", "next_check_on")
 
 # Served by frappe/payments, which reads the reference document from the query string.
 DEFAULT_SUCCESS_PAGE = "/payment-success"
@@ -49,6 +53,20 @@ SAFE_URL = re.compile(r"\A(/|https?://)")
 # leaves room for several payers behind one connection.
 POLLS_PER_TOKEN = 30
 POLLS_PER_ADDRESS = 120
+
+# Each start can push a request to the payer's phone. Counted per token whatever the address, so a
+# link shared around cannot flood one phone, and per address across tokens. The count includes
+# mistyped numbers, hence room for a few typos per token.
+STARTS_WINDOW = 600
+STARTS_PER_TOKEN = 10
+STARTS_PER_ADDRESS = 30
+
+# MTN sends one callback per attempt, from a few addresses for every attempt of the site, so the
+# per-address budget is wide.
+CALLBACKS_PER_ADDRESS = 600
+
+# attempt_id is a UUID v4, sent to MTN as X-Reference-Id.
+ATTEMPT_ID_PATTERN = re.compile(r"\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z")
 
 
 def find_session(token) -> frappe._dict | None:
@@ -99,6 +117,95 @@ def payer_status(session, attempt) -> dict:
 	}
 
 
+# Guest for the same reason as get_status. Opening the page never starts a payment; this POST does (D2).
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(key="token", limit=STARTS_PER_TOKEN, seconds=STARTS_WINDOW, ip_based=False)
+@rate_limit(limit=STARTS_PER_ADDRESS, seconds=STARTS_WINDOW)
+def start_attempt(token: str, msisdn: str) -> dict:
+	"""Record a new attempt for this number, then send the payment request to the provider.
+
+	The number is checked before anything is written or sent. Returns what `get_status` returns.
+	"""
+	session = _session_or_404(token)
+	# Checked again under the row lock. Here it spares a closed session the gateway lookup.
+	_ensure_open(session.status)
+	gateway = get_payment_gateway_controller(session.payment_gateway)
+	if not cint(gateway.enabled):
+		frappe.throw(_("This payment method is not available at the moment."))
+	msisdn = gateway.payer_msisdn(msisdn)
+
+	attempt_id = _open_attempt(session.name, msisdn, cint(gateway.pending_timeout_minutes))
+	try:
+		started = gateway.initiate(attempt_id, session, msisdn)
+	except Exception:
+		# The request may have left, so the outcome is unknown, as after a timeout: keep the attempt
+		# Initiated and let status checks start now.
+		frappe.db.rollback()
+		frappe.log_error(
+			title="Local Payment initiation failed",
+			# Without context: the frames' variables hold the payer's number.
+			message=frappe.get_traceback(),
+			reference_doctype="Local Payment",
+			reference_name=session.name,
+		)
+		started = Initiated(lc.INITIATED)
+	_record_start(session.name, attempt_id, started)
+
+	session = _session_or_404(token)
+	return payer_status(session, current_attempt(session.name))
+
+
+def _open_attempt(session_name: str, msisdn: str, timeout_minutes: int) -> str:
+	"""Save a new Initiated attempt and commit it, so its id is on record before the provider hears of it."""
+	session = frappe.get_doc("Local Payment", session_name, for_update=True)
+	_ensure_open(session.status)
+	try:
+		lc.ensure_can_start_attempt(row.status for row in session.attempts)
+	except lc.AttemptInProgress:
+		frappe.throw(_("A payment request is already waiting for your approval on your phone."))
+
+	now = now_datetime()
+	attempt_id = str(uuid.uuid4())
+	session.append(
+		"attempts",
+		{
+			"attempt_id": attempt_id,
+			"status": lc.INITIATED,
+			"payer_msisdn": msisdn,
+			"started_on": now,
+			"expires_on": now + timedelta(minutes=timeout_minutes),
+			# No status check before the provider has seen the request. _record_start brings it forward.
+			"next_check_on": now + rc.INITIATION_WINDOW,
+		},
+	)
+	session.save(ignore_permissions=True)
+	# If the provider call times out or the worker dies, the attempt must still be there to query. The
+	# commit also releases the row lock before the call.
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- attempt_id on record before the provider call
+	return attempt_id
+
+
+def _ensure_open(status: str) -> None:
+	if status != lc.OPEN:
+		frappe.throw(_("This payment can no longer be made from this page."))
+
+
+def _record_start(session_name: str, attempt_id: str, started: Initiated) -> None:
+	session = frappe.get_doc("Local Payment", session_name, for_update=True)
+	row = rc._attempt_row(session, attempt_id)
+	row.integration_request = started.integration_request
+	# Once the initiation window is over, a status check may have moved the attempt on already.
+	if row.status == lc.INITIATED:
+		if started.status == lc.ERROR:
+			lc.check_attempt_transition(row.status, lc.ERROR)
+			row.status = lc.ERROR
+			row.next_check_on = None
+		else:
+			# The provider has the request: status checks may start.
+			row.next_check_on = now_datetime()
+	session.save(ignore_permissions=True)
+
+
 # The payer has no account, so this is guest by design: it only answers for a valid token.
 # One rate limit bucket per token, so one payer's tabs cannot spend another payer's budget, and one per
 # address, which is what bounds a caller trying a new token on every request.
@@ -121,6 +228,29 @@ def get_status(token: str) -> dict:
 		attempt = current_attempt(session.name)
 
 	return payer_status(session, attempt)
+
+
+# MTN calls back once, unauthenticated. Its body is never read (D3): the call only queues reconcile().
+# Per attempt, the job's deduplication and reconcile's minimum interval bound the work.
+@frappe.whitelist(allow_guest=True, methods=["PUT", "POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
+def mtn_momo_callback() -> None:
+	"""Queue a status check for a known attempt still in play. Every other call gets the same empty answer."""
+	# Frappe builds form_dict from the JSON body alone when there is one, so read the query string.
+	attempt = frappe.request.args.get("attempt")
+	if not attempt or not ATTEMPT_ID_PATTERN.match(attempt):
+		return
+	status = frappe.db.get_value(
+		"Local Payment Attempt", {"attempt_id": attempt, "parenttype": "Local Payment"}, "status"
+	)
+	if status in rc.CHECKABLE_STATES:
+		# reconcile() commits, so it runs in a job, not inside this request. One queued job per attempt.
+		frappe.enqueue(
+			"local_payments.reconcile.reconcile",
+			attempt_id=attempt,
+			job_id=f"local_payments:reconcile:{attempt}",
+			deduplicate=True,
+		)
 
 
 def _check_with_provider(attempt_id: str, session_name: str) -> None:
@@ -151,4 +281,5 @@ def _worth_checking(attempt) -> bool:
 		attempt
 		and attempt.status in rc.CHECKABLE_STATES
 		and rc.check_interval_elapsed(attempt.last_checked_on)
+		and not rc.before_first_check(attempt.check_count, attempt.next_check_on)
 	)

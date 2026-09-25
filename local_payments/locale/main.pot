@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-09-24 18:06+0000\n"
-"PO-Revision-Date: 2026-09-24 18:06+0000\n"
+"POT-Creation-Date: 2026-09-25 05:22+0000\n"
+"PO-Revision-Date: 2026-09-25 05:22+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -16,13 +16,17 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:92
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:182
 msgid "A Sandbox gateway must use {0}."
 msgstr ""
 
 #. Description of the 'Enabled' (Check) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "A disabled gateway refuses new payments."
+msgstr ""
+
+#: local_payments/api.py:165
+msgid "A payment request is already waiting for your approval on your phone."
 msgstr ""
 
 #. Label of the api_section (Section Break) field in DocType 'MTN MoMo
@@ -36,7 +40,7 @@ msgstr ""
 msgid "API Base URL"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:89
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:179
 msgid "API Base URL must be an https:// address."
 msgstr ""
 
@@ -66,7 +70,7 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:37
+#: local_payments/gateway.py:48
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:55
 msgid "Amount must be strictly positive."
 msgstr ""
@@ -77,7 +81,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:307
+#: local_payments/reconcile.py:325
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -97,7 +101,7 @@ msgstr ""
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:308
+#: local_payments/reconcile.py:326
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -135,7 +139,7 @@ msgstr ""
 msgid "Authorization Tries"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:44
+#: local_payments/templates/pages/local_payment_checkout.html:46
 msgid "Cancelled"
 msgstr ""
 
@@ -180,7 +184,7 @@ msgstr ""
 msgid "Column Break Payer"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:34
+#: local_payments/templates/pages/local_payment_checkout.html:36
 msgid "Confirm the payment on your phone. This page updates on its own."
 msgstr ""
 
@@ -196,7 +200,7 @@ msgstr ""
 msgid "Confirmed Currency"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:42
+#: local_payments/templates/pages/local_payment_checkout.html:44
 msgid "Continue"
 msgstr ""
 
@@ -236,7 +240,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:306
+#: local_payments/reconcile.py:324
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -245,6 +249,14 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Enabled"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:25
+msgid "Enter your mobile money number."
+msgstr ""
+
+#: local_payments/gateway.py:87
+msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr ""
 
 #. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
@@ -282,7 +294,7 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:78
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:168
 msgid "Gateway Name cannot be changed once saved."
 msgstr ""
 
@@ -340,22 +352,28 @@ msgstr ""
 msgid "Local Payments Test Settings"
 msgstr ""
 
+#. Label of the msisdn_national_length (Int) field in DocType 'Local Payments
+#. Test Settings'
 #. Label of the msisdn_national_length (Int) field in DocType 'MTN MoMo
 #. Settings'
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "MSISDN National Length"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:98
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:188
 msgid "MSISDN National Length must be greater than zero."
 msgstr ""
 
+#. Label of the msisdn_prefix (Data) field in DocType 'Local Payments Test
+#. Settings'
 #. Label of the msisdn_prefix (Data) field in DocType 'MTN MoMo Settings'
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "MSISDN Prefix"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:96
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:186
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr ""
 
@@ -392,7 +410,7 @@ msgstr ""
 msgid "Minimal Settings doctype used only by the tests of gateway.py. Not a real provider."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:25
+#: local_payments/templates/pages/local_payment_checkout.html:27
 msgid "Mobile money number"
 msgstr ""
 
@@ -439,7 +457,7 @@ msgstr ""
 msgid "Paid On"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:29
+#: local_payments/templates/pages/local_payment_checkout.html:32
 msgid "Pay"
 msgstr ""
 
@@ -477,10 +495,6 @@ msgstr ""
 msgid "Payer Name"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:30
-msgid "Paying from this page is not open yet."
-msgstr ""
-
 #: local_payments/templates/pages/local_payment_checkout.html:3
 #: local_payments/templates/pages/local_payment_checkout.html:16
 msgid "Payment"
@@ -495,11 +509,11 @@ msgstr ""
 msgid "Payment by {0}"
 msgstr ""
 
-#: local_payments/reconcile.py:309
+#: local_payments/reconcile.py:327
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:41
+#: local_payments/templates/pages/local_payment_checkout.html:43
 msgid "Payment received"
 msgstr ""
 
@@ -510,13 +524,16 @@ msgstr ""
 msgid "Pending"
 msgstr ""
 
+#. Label of the pending_timeout_minutes (Int) field in DocType 'Local Payments
+#. Test Settings'
 #. Label of the pending_timeout_minutes (Int) field in DocType 'MTN MoMo
 #. Settings'
+#: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Pending Timeout (Minutes)"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:104
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:194
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr ""
 
@@ -647,19 +664,31 @@ msgstr ""
 msgid "The only currency this gateway accepts."
 msgstr ""
 
-#: local_payments/gateway.py:77
+#: local_payments/gateway.py:105
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
-#: local_payments/gateway.py:66
+#: local_payments/templates/pages/local_payment_checkout.html:24
+msgid "The payment request could not be sent. Check the number and try again."
+msgstr ""
+
+#: local_payments/api.py:190
+msgid "This payment can no longer be made from this page."
+msgstr ""
+
+#: local_payments/api.py:134
+msgid "This payment method is not available at the moment."
+msgstr ""
+
+#: local_payments/gateway.py:94
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:145
+#: local_payments/api.py:275
 msgid "This payment page is no longer available."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:45
+#: local_payments/templates/pages/local_payment_checkout.html:47
 msgid "This payment request was cancelled. Ask the sender for a new link."
 msgstr ""
 
@@ -689,7 +718,7 @@ msgstr ""
 msgid "Void"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:38
+#: local_payments/templates/pages/local_payment_checkout.html:40
 msgid "We are still waiting for an answer. Reload this page to check again."
 msgstr ""
 
@@ -699,7 +728,7 @@ msgstr ""
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
 
-#: local_payments/gateway.py:39
+#: local_payments/gateway.py:50
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
 
