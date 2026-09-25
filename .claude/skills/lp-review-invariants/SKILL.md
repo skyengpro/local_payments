@@ -20,8 +20,8 @@ Goal: find violations of the invariants in `CLAUDE.md`, not style issues. Generi
 1. `git diff <base>...HEAD --stat`, then read every touched file in full.
 2. Map each file to the invariants that apply (table below) and check only those.
 3. Run the greps. A hit is a lead, not a verdict: read the context.
-4. For each Frappe API used in a way that could differ between v15 and v16, confirm the signature
-   in the installed source (`../frappe-bench/apps/frappe`) and cite the file.
+4. For each version-sensitive Frappe API, confirm the signature in the installed v16 source
+   (`../frappe-bench/apps/frappe`, `erpnext`, `payments`) and cite the file.
 5. Report.
 
 | Touched | Invariants |

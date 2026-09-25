@@ -37,8 +37,8 @@ progress of its merchant contract.
   calls `on_payment_authorized(status)` on the document designated by
   `reference_doctype` / `reference_docname`. This is the only contract
   shared by all consumers (ADR 0001).
-- **`frappe/payments` does not publish a version.** It is tracked by branch
-  (`version-15`, `version-16`) or pinned by SHA. MIT license.
+- **`frappe/payments` does not publish a version.** It is pinned by SHA
+  on its `version-16` branch (`cca07d9f9392e2ea0e521c5975151db9e4b6c321`). MIT license.
 - **ERPNext is optional.** When it is installed, `Payment Request` does not
   implement `on_payment_authorized` (frappe/payments#204): a successful
   payment does not finalize it without intervention (ADR 0002).
@@ -503,8 +503,8 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 
 ## Installation and configuration
 
-1. `bench get-app payments --branch version-16` (or `version-15`), then
-   `bench get-app local_payments`.
+1. `bench get-app payments --branch version-16`, then
+   `git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321`, then `bench get-app local_payments`.
 2. `bench --site <site> install-app payments local_payments`.
 3. Create one `MTN MoMo Settings` document per MTN merchant contract, then,
    once Orange Money is implemented, one `Orange Money Settings` document

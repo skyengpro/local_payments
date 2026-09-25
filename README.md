@@ -6,8 +6,12 @@
 
 You can install this app using the [bench](https://github.com/frappe/bench) CLI:
 
+Requires Frappe v16 and `frappe/payments` on `version-16`, pinned to a known commit.
+
 ```bash
 cd $PATH_TO_YOUR_BENCH
+bench get-app payments --branch version-16
+git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
 bench get-app $URL_OF_THIS_REPO --branch version-16
 bench install-app local_payments
 ```

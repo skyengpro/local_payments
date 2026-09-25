@@ -43,7 +43,7 @@ SKILLS=(
   agents/frappe-agent-debugger
 )
 # Deliberately NOT installed: frappe-core-cache (teaches frappe.lock(), which does not exist in
-# v15/v16), server-script skills, print/reports/workspace/workflow/ui skills, ops-cloud and the
+# v16), server-script skills, print/reports/workspace/workflow/ui skills, ops-cloud and the
 # other ops skills, agent-validator/architect/interpreter/migrator.
 
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT

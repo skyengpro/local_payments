@@ -1,8 +1,8 @@
 # local_payments
 
 Frappe app that adds Cameroon mobile-money gateways (MTN MoMo first, then Orange Money
-Local/USSD) on top of `frappe/payments`. Targets Frappe v15 and v16. ERPNext is optional.
-v14 is out of scope.
+Local/USSD) on top of `frappe/payments`. Targets Frappe v16 (frappe, erpnext and payments on `version-16`, payments pinned by SHA).
+ERPNext is optional. Earlier versions are out of scope.
 
 ## Source of truth
 
@@ -31,7 +31,7 @@ Read before touching:
 ## Layout
 
 Pure core (no `frappe` import, enforced by CI): `providers/`, `lifecycle.py`.
-Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `scheduler.py`,`templates/pages/local_payment_checkout`. 
+Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `scheduler.py`, `templates/pages/local_payment_checkout`. 
 
 Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
 `Local Payment`, `Local Payment Attempt` (child table).
@@ -59,13 +59,13 @@ Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
 - No `frappe.db.commit()` in controllers or hooks. Explicit commits only where D4 requires them (`reconcile.py`), and in `api._open_attempt`, which commits the new attempt before the provider call.
 - `Local Payments Manager` and any other role ship as fixtures or patches, never hand-configured.
 - Deliverables are app code. No Server Scripts, no Client Scripts created in the desk.
-- Code must work on v16.
+- Code must work on v16. Check APIs in the installed v16 sources.
 
 ## Method
 
 - **Don't reinvent.** Before adding a helper, search `frappe`, `erpnext`, `payments` for it. State what exists and the specific limit that blocks reuse. Installed sources are readable through `additionalDirectories` (`.claude/settings.json`).
 - **Verify version-sensitive APIs in source, not in a skill or from memory.** Known case: the
-  community skill `frappe-core-cache` teaches `frappe.lock()`, which does not exist in v15 or v16 (use row locks or `frappe.utils.synchronization.filelock`). Cite the file you checked.
+  community skill `frappe-core-cache` teaches `frappe.lock()`, which does not exist in v16 (use row locks or `frappe.utils.synchronization.filelock`). Cite the file you checked.
 - **Context7** for third-party library docs. Not for Frappe internals: read the source.
 - **Never guess provider behaviour.** Unknown Orange Money endpoints, schemas, statuses, ID format: stop and list what is missing (`gateways/orange-money.md`, table "Ce qu'il faut obtenir").
   MTN "points à confirmer" stay configuration, not hard-coded assumptions.
