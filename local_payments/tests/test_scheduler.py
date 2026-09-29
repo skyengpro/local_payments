@@ -8,7 +8,6 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_to_date, now_datetime
 
-from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
 from local_payments import scheduler as sch
 from local_payments.tests.test_reconcile import GATEWAY, MANAGER, make_session

@@ -25,7 +25,6 @@ def get_context(context):
 		raise frappe.PageDoesNotExistError
 
 	attempt = api.current_attempt(session.name)
-	context.no_cache = 1
 	context.update(
 		token=frappe.form_dict.token,
 		session_title=session.title,
