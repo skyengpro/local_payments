@@ -208,9 +208,14 @@ A `company` field on the settings, which would duplicate
 ### D6. Payment Requests are finalized by a hook
 
 `local_payments` registers `on_payment_authorized` on `Payment Request` via
-`doc_events`, only for its own gateways, and calls `set_as_paid()`: ERPNext
-is the one that creates the Payment Entry. Idempotency guard and
-version-upgrade risk:
+`doc_events`, only for its own gateways, and calls `set_as_paid()` once a
+session of the request is `Paid`: ERPNext is the one that creates the
+Payment Entry. ERPNext checks the user's rights while doing so, and the
+payer is a Guest, so that one call runs as Administrator, after the guards,
+and the caller's state is put back afterwards. When the request is
+cancelled, the same module closes its `Open` sessions, and refuses the
+cancellation while a session is `Paid` with an authorization not yet `Done`.
+Idempotency guard, user context and version-upgrade risk:
 [ADR 0002](decisions/0002-payment-request-authorization-hook.md).
 
 ### D7. A pure core, thin adapters
@@ -398,6 +403,9 @@ Rules carried by `lifecycle.py`:
 - A successful attempt whose amount or currency differs from the session is
   marked `amount_mismatch`. The session stays `Open` and an alert is
   raised.
+- A successful attempt on a `Void` session stays `Succeeded`, the session
+  stays `Void`, and an alert is raised (`void_paid`): the money arrived after
+  the cancellation and is handled by hand.
 - No transition returns from a final state.
 
 ## Contract with consumers
@@ -450,7 +458,7 @@ documentation is received.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                                |
 | Every hour                 | `Unresolved` attempts whose `next_check_on` is due, until 72 hours after their deadline. `Pending` or `Failed` authorizations whose `authorization_next_retry_on` is due.            |
-| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session still `Open`, authorizations still `Failed` after the maximum number of tries. |
+| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session not `Paid`, authorizations still `Failed` after the maximum number of tries. |
 
 The jobs decide nothing. `reconcile()` writes the next due date each time it records an outcome:
 decreasing frequency for an `Unresolved` attempt, a doubling backoff for a failed authorization, and no
@@ -470,7 +478,8 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 - `Local Payment` is readable by `Local Payments Manager`, a role created
   by the application, and by System Manager. The document is only ever
   created by code and can only be deleted by Administrator. Its status
-  fields are read-only and are written only by `reconcile()`.
+  fields are read-only and are written only by `reconcile()`, and by the
+  Payment Request cancellation hook, which moves `Open` sessions to `Void`.
 - Guest access to a session only ever goes through its `token`. The
   sequential name is never exposed. The page shows only the title, the
   amount, the currency, and the provider.
@@ -500,6 +509,11 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
   mark it paid.
 - A second success on an already-paid session is logged as a duplicate,
   never applied a second time.
+- Cancelling a Payment Request is refused while one of its sessions is
+  `Paid` with an authorization not yet `Done`, or while an authorization is
+  running on one of them.
+- A Payment Request that is not submitted is never marked paid: its
+  authorization fails and is retried.
 
 ## Installation and configuration
 
@@ -534,6 +548,15 @@ Nothing else varies from one site to another.
   `frappe/payments`. Status: to watch (ADR 0001).
 - **No refunds.** A duplicate or an amount mismatch is handled outside the
   application.
+- **A partly paid Payment Request is settled for what remains.** If a manual
+  Payment Entry already covers part of it, the session still asks for the
+  full amount, but `set_as_paid()` only books the outstanding amount. The
+  difference is handled outside the application.
+- **A failed authorization can leave stale side effects queued.** Rolling
+  back to the savepoint does not empty Frappe's `after_commit` queue, so the
+  cache invalidations and desk refresh events of the undone Payment Entry
+  still run when `Failed` is committed. No job is queued that way; the worst
+  case is a desk screen refreshing for a document that does not exist.
 - **The Orange Money Local/USSD technical contract is not yet known.**
   Endpoints, the status schema, and the format of the transmitted
   identifier depend on the documentation delivered when the merchant

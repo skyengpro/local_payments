@@ -141,3 +141,16 @@ class TestResolve(unittest.TestCase):
 		r = resolve(succeeded(), session=lc.VOID)
 		self.assertEqual((r.attempt_status, r.session_status), (lc.SUCCEEDED, lc.VOID))
 		self.assertFalse(r.session_paid)
+		self.assertTrue(r.void_paid)
+		self.assertFalse(r.duplicate or r.amount_mismatch)
+
+	def test_only_a_success_on_a_void_session_is_void_paid(self):
+		for result, session in (
+			(succeeded(), lc.OPEN),
+			(succeeded(), lc.PAID),
+			(succeeded(amount="1"), lc.OPEN),
+			(ProviderResult(lc.FAILED), lc.VOID),
+			(ProviderResult(lc.PENDING), lc.VOID),
+		):
+			with self.subTest(result=result, session=session):
+				self.assertFalse(resolve(result, session=session).void_paid)

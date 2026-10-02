@@ -22,6 +22,9 @@ from local_payments.providers.msisdn import normalize_msisdn
 
 CHECKOUT_PAGE = "local_payment_checkout"
 
+# The Settings doctypes of this app's gateways. A Payment Gateway is ours if its gateway_settings is one of them.
+SETTINGS_DOCTYPES = ("MTN MoMo Settings", "Orange Money Settings")
+
 # ISO 4217 currencies with no minor unit. Frappe's Currency records can't be used for this:
 # XAF is stored there with 100 fraction units.
 ZERO_DECIMAL_CURRENCIES = frozenset(

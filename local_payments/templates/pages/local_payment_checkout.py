@@ -33,7 +33,8 @@ def get_context(context):
 		provider=api.provider_name(session.payment_gateway),
 		status=session.status,
 		redirect_url=api.exit_url(session) if session.status == lc.PAID else None,
-		waiting=bool(attempt and attempt.status in rc.CHECKABLE_STATES),
+		# Only an Open session waits: on a Void one, polling would reload the page forever.
+		waiting=session.status == lc.OPEN and bool(attempt and attempt.status in rc.CHECKABLE_STATES),
 	)
 
 

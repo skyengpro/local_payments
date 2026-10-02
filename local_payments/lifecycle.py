@@ -97,6 +97,11 @@ class Resolution:
 		"""True only when this result is the one that moves the session to Paid."""
 		return self.session_status == PAID and not self.duplicate
 
+	@property
+	def void_paid(self) -> bool:
+		"""True when the provider confirmed a payment on a session that was cancelled in the meantime."""
+		return self.session_status == VOID and self.attempt_status == SUCCEEDED
+
 
 def _check(kind: str, table: dict[str, frozenset[str]], current: str, new: str) -> None:
 	if new not in table.get(current, frozenset()):

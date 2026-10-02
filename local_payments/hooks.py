@@ -138,13 +138,13 @@ required_apps = ["payments"]
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+# Payment Request is ERPNext's. Without ERPNext these never fire.
+doc_events = {
+	"Payment Request": {
+		"on_payment_authorized": "local_payments.erpnext.on_payment_authorized",
+		"on_cancel": "local_payments.erpnext.void_open_sessions",
+	}
+}
 
 # Scheduled Tasks
 # ---------------

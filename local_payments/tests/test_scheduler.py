@@ -237,6 +237,13 @@ class TestScheduler(IntegrationTestCase):
 		self.assertEqual(self.alerts(recent), [])
 		self.assertEqual(self.alerts(paid_meanwhile), [])
 
+	def test_unresolved_over_72_hours_on_a_void_session_alerts_managers(self):
+		cancelled = make_session({"status": "Unresolved", "expires_on": ago(hours=80)}, status="Void")
+
+		sch.send_daily_alerts()
+
+		self.assertEqual(len(self.alerts(cancelled)), 1)
+
 	def test_authorization_still_failing_after_the_last_try_alerts_managers_once(self):
 		exhausted = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES)
 		retrying = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES - 1)
