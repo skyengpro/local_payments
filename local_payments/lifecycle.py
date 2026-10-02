@@ -91,6 +91,8 @@ class Resolution:
 	session_status: str
 	duplicate: bool = False
 	amount_mismatch: bool = False
+	# The provider confirmed a payment on a session that was cancelled in the meantime.
+	void_paid: bool = False
 
 	@property
 	def session_paid(self) -> bool:
@@ -171,7 +173,7 @@ def resolve(
 
 	if session_status != OPEN:
 		# Void can't become Paid. The provider did confirm the payment, so the attempt says Succeeded.
-		return Resolution(attempt_status=SUCCEEDED, session_status=session_status)
+		return Resolution(attempt_status=SUCCEEDED, session_status=session_status, void_paid=True)
 
 	if not (
 		amounts_match(session_amount, result.amount) and currencies_match(session_currency, result.currency)
