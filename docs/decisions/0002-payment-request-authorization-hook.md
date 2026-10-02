@@ -2,6 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-11
+**Updated:** 2026-10-02 (user context, cancellation, guards)
 
 ## Context
 
@@ -19,7 +20,23 @@ paid.
 `Document.run_method()` runs the controller's method if it exists, then the
 `doc_events` declared by installed applications for that event, then the "On
 Payment Authorization" Server Scripts. An application can therefore supply
-the missing handling without modifying ERPNext.
+the missing handling without modifying ERPNext. Each handler is called as
+`handler(doc, method, *args)`, and a `commit()` inside it is ignored
+(frappe 16.31.0, `model/document.py` `Document.hook`).
+
+`set_as_paid()` checks the current user's rights along the way. In erpnext
+16.32.3, `get_party_account()` refuses an account the user cannot read
+(`accounts/party.py`, `account_perm_check`), and `get_reference_details()`
+checks read access to the referenced document
+(`payment_entry/payment_entry.py`). The authorization step runs as Guest
+when the payer's page polls the status, and as the user who queued the job
+for the MTN callback. An integration test confirmed it: as Guest,
+`set_as_paid()` fails with "User don't have permissions to select/read this
+account."; as Administrator, it books the Payment Entry.
+
+When a Payment Request is cancelled, ERPNext's own `on_cancel` runs first;
+our handler runs after it, in the same transaction, so an error from it
+undoes the whole cancellation.
 
 ## Decision
 
@@ -38,14 +55,40 @@ doc_events = {
 
 1. does nothing if `doc.payment_gateway` is not a `local_payments` gateway,
    i.e. if `gateway_settings` is neither `Orange Money Settings` nor `MTN
-   MoMo Settings`;
-2. does nothing if `status` is not `Authorized` or `Completed`;
-3. re-reads the Payment Request's status from the database, with a lock
-   (`for_update`), and does nothing if it is already `Paid`;
-4. calls `doc.set_as_paid()`.
+   MoMo Settings`. Other gateways' requests stay unlocked;
+2. does nothing if `status` is not `Authorized` or `Completed`, or if no
+   `Local Payment` session of this request is `Paid`: only a payment the
+   provider confirmed to the merchant settles it, whoever calls the method;
+3. re-reads the Payment Request's `docstatus` and `status` from the
+   database, with a lock (`for_update`), and does nothing if it is already
+   `Paid`. A request that is not submitted (`docstatus != 1`) raises an
+   error: the authorization moves to `Failed` and the managers are told
+   through the usual retry and alert path;
+4. calls `set_as_paid()` on the request loaded again after the lock, not on
+   the `doc` it received, which may be stale. The call runs as
+   Administrator. The caller's user and request state (session, form data,
+   caches) are put back as they were afterwards, even on error.
 
-`void_open_sessions` moves `Open` sessions that reference the cancelled
-Payment Request to `Void`.
+The hook has no `try/except` and no `commit`. Errors go up to
+`reconcile.authorize()`, which owns the transaction, the retry counter and
+the alert. The payer's status endpoint drops every message raised while it
+checks the payment, the hook's included, so ERPNext's text never reaches the
+payer's page.
+
+`void_open_sessions`, on the request's `on_cancel`, locks the sessions that
+reference it, by name and without waiting. The cancel already holds the
+request's row and an authorization locks its session before the request, so
+waiting could deadlock. Then it:
+
+- refuses the cancellation at once if a session is locked by a running
+  authorization ("try again in a moment");
+- refuses the cancellation if one of them is `Paid` with an authorization
+  other than `Done`. The message names the session to retry first;
+- moves the `Open` ones to `Void`. Their checkout page no longer accepts a
+  payment.
+
+A payment the provider confirms later on a `Void` session leaves it `Void`
+and alerts the managers (`void_paid`).
 
 The hook is inactive on a site without ERPNext, for lack of a `Payment
 Request` doctype.
@@ -102,13 +145,47 @@ application would become a second source of accounting entries.
 **Drawbacks:** every payment received must be reconciled by hand. The main
 intended use case, paying ERPNext invoices and orders, loses its point.
 
+### User context for `set_as_paid()`
+
+| Option | Assessment |
+| --- | --- |
+| Run it as Administrator, after the guards (chosen) | The request is settled on the first trigger, from the page or the callback |
+| Leave it to the scheduler, which runs as Administrator | No elevation, but every payment from the page first ends `Failed`, waits about an hour, uses one try and writes an Error Log |
+
+**Advantages of elevating:** the payer sees a settled request right away, and
+the managers are only alerted for real failures. The elevated code is the
+same one the scheduler already runs. The payer only supplies a token, and
+the hook is reached only after the provider has confirmed the payment to the
+merchant's credentials (ARCHITECTURE, D3).
+
+**Drawbacks of elevating:** other applications' handlers on Payment Entry or
+Sales Invoice also run as Administrator, as they do from the scheduler. The
+caller's state must be put back exactly as it was: `frappe.set_user()` also
+replaces the session, the form data and the caches.
+
+### Cancelling a request with money in play
+
+| Option | Assessment |
+| --- | --- |
+| Refuse the cancel while a session is `Paid` and not `Done` (chosen) | No payment ends up on a cancelled request without an entry |
+| Allow it and alert | The money is received, the request is cancelled, nothing in the books |
+
+**Advantages of refusing:** the merchant books the payment before cancelling,
+and the message names the session to retry.
+
+**Drawbacks of refusing:** until the "Retry authorization" button exists on
+the `Local Payment` form, a merchant blocked by repeated failures waits for
+the scheduler's retry or uses the console.
+
 ## Trade-off analysis
 
 Option A delegates the accounting entry to ERPNext and limits the side
 effect to the application's gateways. Option B fixes a broader problem, but
 goes beyond scope and creates a risk of conflict between applications.
 Options C and D shift the cost onto each site or onto long-term
-maintenance.
+maintenance. Elevating to Administrator, limited to `set_as_paid()` and
+reached only after a payment the merchant's own query confirmed, costs less
+than turning every payment from the page into a failure and a delayed retry.
 
 ## Consequences
 
@@ -125,16 +202,26 @@ maintenance.
   `Payment Request`, the controller's method will run before the hook. The
   database status re-read (step 3) then prevents a second Payment Entry. An
   integration test simulates this case.
+- **User context:** the Payment Entry is created by Administrator, whoever
+  triggered the authorization.
+- **Cancellation:** a request whose payment is received but not booked
+  cannot be cancelled. A payment confirmed after the cancellation leaves the
+  session `Void` and alerts the managers, who handle it by hand.
 - **To revisit:** once frappe/payments#204 is closed, keep the guard, then
-  remove the hook if the upstream handling covers the same cases.
+  remove the hook if the upstream handling covers the same cases. If ERPNext
+  stops checking the user's rights in `set_as_paid()`, drop the elevation.
 
 ## Actions
 
-1. [ ] `local_payments/erpnext.py`: `on_payment_authorized` and
+1. [x] `local_payments/erpnext.py`: `on_payment_authorized` and
        `void_open_sessions`.
-2. [ ] Integration test: Payment Request paid, Payment Entry submitted,
-       status `Paid`.
-3. [ ] Integration test: second trigger without a second Payment Entry.
-4. [ ] Integration test: simulated upstream handling, no double entry.
-5. [ ] Integration test: Payment Request cancelled, session moved to
+2. [x] Integration test: Payment Request paid, Payment Entry submitted,
+       status `Paid`, as Guest and as Administrator.
+3. [x] Integration test: second trigger without a second Payment Entry.
+4. [x] Integration test: simulated upstream handling, no double entry.
+5. [x] Integration test: Payment Request cancelled, session moved to
        `Void`, new attempt refused.
+6. [x] Integration test: cancellation refused while a session is `Paid`
+       and not `Done`.
+7. [ ] "Retry authorization" button on the `Local Payment` form, so a
+       merchant blocked by the cancellation guard does not need the console.

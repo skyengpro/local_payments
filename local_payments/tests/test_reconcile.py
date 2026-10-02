@@ -198,12 +198,6 @@ class TestReconcile(IntegrationTestCase):
 		self.assertIn("Accounting period is closed", session.authorization_error)
 		self.assertFalse(frappe.db.exists("ToDo", {"description": EFFECT}))
 
-	def test_failing_consumer_leaves_no_message_for_the_payer(self):
-		consumer_state["fail"] = True
-		frappe.clear_messages()
-		self.reconcile(make_session(), FakeProvider(succeeded()))
-		self.assertEqual(frappe.local.message_log, [])
-
 	def test_failed_authorization_can_be_retried_without_asking_the_provider(self):
 		consumer_state["fail"] = True
 		session = make_session()

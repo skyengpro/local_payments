@@ -23,10 +23,9 @@ REFUSE = "refuse"
 # What frappe/payments gateways pass to on_payment_authorized when the money is in.
 PAID_STATUSES = ("Authorized", "Completed")
 
-# What frappe.set_user() replaces on frappe.local.
+# What frappe.set_user() replaces on frappe.local, apart from the cache.
 USER_STATE = (
 	"session",
-	"cache",
 	"form_dict",
 	"role_permissions",
 	"new_doc_templates",
@@ -45,25 +44,24 @@ def settlement_action(is_ours: bool, status: str, pr_docstatus: int, pr_status: 
 	return SETTLE
 
 
-def blocks_cancel(sessions: Iterable) -> bool:
-	"""True if a session holds a payment that is not yet booked in ERPNext."""
-	return any(s.status == lc.PAID and s.authorization != rc.AUTH_DONE for s in sessions)
+def unbooked_sessions(sessions: Iterable) -> list[str]:
+	"""The sessions holding a payment that is not yet booked in ERPNext."""
+	return [s.name for s in sessions if s.status == lc.PAID and s.authorization != rc.AUTH_DONE]
 
 
 def on_payment_authorized(doc, method, status):
 	"""Settle the Payment Request once one of our gateways has been paid. Runs after ERPNext's own method."""
-	is_ours = (
-		frappe.db.get_value("Payment Gateway", doc.payment_gateway, "gateway_settings") in SETTINGS_DOCTYPES
-	)
+	is_ours = _is_ours(doc)
 	# Leaves other gateways' requests unlocked.
 	if settlement_action(is_ours, status, doc.docstatus, doc.status) == SKIP:
 		return
+	# Only a payment the provider confirmed to the merchant settles the request.
+	if not frappe.db.exists("Local Payment", {**_sessions_of(doc), "status": lc.PAID}):
+		return
 
 	# Read again under lock: the request in memory may be stale, or already settled by another trigger.
-	current = frappe.db.get_value(
-		"Payment Request", doc.name, ["docstatus", "status"], as_dict=True, for_update=True
-	)
-	action = settlement_action(is_ours, status, current.docstatus, current.status)
+	request = frappe.get_doc("Payment Request", doc.name, for_update=True)
+	action = settlement_action(is_ours, status, request.docstatus, request.status)
 	if action == SKIP:
 		return
 	if action == REFUSE:
@@ -71,7 +69,6 @@ def on_payment_authorized(doc, method, status):
 			_("Payment Request {0} is not submitted, so it can't be marked as paid.").format(doc.name)
 		)
 
-	request = frappe.get_doc("Payment Request", doc.name)
 	# ERPNext checks the user's rights on accounts and on the referenced document, and the payer is a Guest.
 	with as_administrator():
 		request.set_as_paid()
@@ -79,28 +76,37 @@ def on_payment_authorized(doc, method, status):
 
 def void_open_sessions(doc, method=None):
 	"""Close the sessions of a cancelled Payment Request. Refuse the cancel while a payment is not booked."""
-	sessions = frappe.db.get_values(
-		"Local Payment",
-		{"reference_doctype": "Payment Request", "reference_docname": doc.name},
-		["name", "status", "authorization"],
-		as_dict=True,
-		for_update=True,
-	)
-	if blocks_cancel(sessions):
-		unbooked = next(s.name for s in sessions if s.status == lc.PAID and s.authorization != rc.AUTH_DONE)
+	if not _is_ours(doc):
+		return
+	names = frappe.get_all("Local Payment", _sessions_of(doc), pluck="name")
+	if not names:
+		return
+	# By name, so only these rows lock. No wait: an authorization holds its session, then wants our request.
+	try:
+		sessions = frappe.db.get_values(
+			"Local Payment",
+			{"name": ["in", names]},
+			["name", "status", "authorization"],
+			as_dict=True,
+			for_update=True,
+			wait=False,
+		)
+	except frappe.QueryTimeoutError:
+		frappe.throw(_("A payment for this request is being processed. Try again in a moment."))
+
+	if unbooked := unbooked_sessions(sessions):
 		frappe.throw(
 			_(
 				"A payment was received for this request and is not booked yet. Retry its authorization from {0} before cancelling."
-			).format(unbooked)
+			).format(unbooked[0])
 		)
 
+	lc.check_session_transition(lc.OPEN, lc.VOID)
 	for row in sessions:
-		if row.status != lc.OPEN:
-			continue
-		lc.check_session_transition(lc.OPEN, lc.VOID)
-		session = frappe.get_doc("Local Payment", row.name)
-		session.status = lc.VOID
-		session.save(ignore_permissions=True)
+		if row.status == lc.OPEN:
+			session = frappe.get_doc("Local Payment", row.name)
+			session.status = lc.VOID
+			session.save(ignore_permissions=True)
 
 
 @contextmanager
@@ -115,3 +121,16 @@ def as_administrator():
 	finally:
 		for name, value in saved.items():
 			setattr(frappe.local, name, value)
+		# Start empty: the caller's cache may be stale, and Administrator's must not outlive the block.
+		frappe.local.cache = {}
+
+
+def _is_ours(request) -> bool:
+	gateway = request.payment_gateway
+	return bool(gateway) and frappe.get_cached_value("Payment Gateway", gateway, "gateway_settings") in (
+		SETTINGS_DOCTYPES
+	)
+
+
+def _sessions_of(request) -> dict:
+	return {"reference_doctype": "Payment Request", "reference_docname": request.name}

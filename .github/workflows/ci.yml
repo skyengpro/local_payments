@@ -15,7 +15,13 @@ concurrency:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    name: Server (Frappe version-16)
+    name: Server (Frappe version-16${{ matrix.erpnext && ', ERPNext' || '' }})
+
+    # Without ERPNext: the app must install and behave the same. With it: Payment Requests get settled.
+    strategy:
+      fail-fast: false
+      matrix:
+        erpnext: [false, true]
 
     services:
       redis-cache:
@@ -93,6 +99,9 @@ jobs:
           bench get-app payments --branch version-16
           # pinned SHA of payments version-16: reproducible, known rollback point
           git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
+          if [ "${{ matrix.erpnext }}" = "true" ]; then
+            bench get-app erpnext --branch version-16
+          fi
           bench get-app local_payments "$GITHUB_WORKSPACE"
           bench setup requirements --dev
 
@@ -101,6 +110,9 @@ jobs:
         run: |
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app payments
+          if [ "${{ matrix.erpnext }}" = "true" ]; then
+            bench --site test_site install-app erpnext
+          fi
           bench --site test_site install-app local_payments
           bench build --app local_payments
         env:

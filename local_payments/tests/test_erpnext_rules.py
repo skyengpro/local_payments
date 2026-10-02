@@ -7,8 +7,8 @@ from types import SimpleNamespace
 from local_payments import erpnext as ep
 
 
-def session(status, authorization=""):
-	return SimpleNamespace(status=status, authorization=authorization)
+def session(status, authorization="", name="LPAY-1"):
+	return SimpleNamespace(name=name, status=status, authorization=authorization)
 
 
 class TestSettlementAction(unittest.TestCase):
@@ -38,14 +38,17 @@ class TestSettlementAction(unittest.TestCase):
 				self.assertEqual(ep.settlement_action(True, "Completed", docstatus, pr_status), ep.REFUSE)
 
 
-class TestBlocksCancel(unittest.TestCase):
-	def test_paid_session_not_yet_booked_blocks(self):
+class TestUnbookedSessions(unittest.TestCase):
+	def test_paid_session_not_yet_booked_is_listed(self):
 		for authorization in ("", "Pending", "Failed"):
 			with self.subTest(authorization=authorization):
-				self.assertTrue(ep.blocks_cancel([session("Open"), session("Paid", authorization)]))
+				sessions = [session("Open", name="LPAY-1"), session("Paid", authorization, name="LPAY-2")]
+				self.assertEqual(ep.unbooked_sessions(sessions), ["LPAY-2"])
 
-	def test_booked_open_or_void_sessions_do_not_block(self):
-		self.assertFalse(ep.blocks_cancel([session("Paid", "Done"), session("Open"), session("Void")]))
+	def test_booked_open_or_void_sessions_are_not_listed(self):
+		self.assertEqual(
+			ep.unbooked_sessions([session("Paid", "Done"), session("Open"), session("Void")]), []
+		)
 
-	def test_no_session_does_not_block(self):
-		self.assertFalse(ep.blocks_cancel([]))
+	def test_no_session_lists_nothing(self):
+		self.assertEqual(ep.unbooked_sessions([]), [])

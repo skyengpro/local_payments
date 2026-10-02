@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-02 14:41+0000\n"
+"POT-Creation-Date: 2026-10-02 15:45+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -27,11 +27,15 @@ msgstr "Une passerelle en Sandbox doit utiliser {0}."
 msgid "A disabled gateway refuses new payments."
 msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 
+#: local_payments/erpnext.py:96
+msgid "A payment for this request is being processed. Try again in a moment."
+msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
+
 #: local_payments/api.py:165
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr "Une demande de paiement attend déjà votre validation sur votre téléphone."
 
-#: local_payments/erpnext.py:92
+#: local_payments/erpnext.py:100
 msgid "A payment was received for this request and is not booked yet. Retry its authorization from {0} before cancelling."
 msgstr "Un paiement a été reçu pour cette demande et n'est pas encore comptabilisé. Relancez son autorisation depuis {0} avant d'annuler."
 
@@ -87,7 +91,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:329
+#: local_payments/reconcile.py:333
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -107,7 +111,7 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:330
+#: local_payments/reconcile.py:334
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -246,7 +250,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:328
+#: local_payments/reconcile.py:332
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -511,7 +515,7 @@ msgstr "Paiement"
 msgid "Payment Gateway"
 msgstr ""
 
-#: local_payments/erpnext.py:71
+#: local_payments/erpnext.py:69
 msgid "Payment Request {0} is not submitted, so it can't be marked as paid."
 msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être marquée comme payée."
 
@@ -519,7 +523,7 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:331
+#: local_payments/reconcile.py:335
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
@@ -527,7 +531,7 @@ msgstr ""
 msgid "Payment received"
 msgstr "Paiement reçu"
 
-#: local_payments/reconcile.py:332
+#: local_payments/reconcile.py:336
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
@@ -698,7 +702,7 @@ msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:275
+#: local_payments/api.py:279
 msgid "This payment page is no longer available."
 msgstr "Cette page de paiement n'est plus disponible."
 

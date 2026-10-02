@@ -247,8 +247,14 @@ def _record(
 	session.save(ignore_permissions=True)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
-	alert = next(
-		(flag for flag in ("duplicate", "amount_mismatch", "void_paid") if getattr(resolution, flag)), None
+	alert = (
+		"duplicate"
+		if resolution.duplicate
+		else "amount_mismatch"
+		if resolution.amount_mismatch
+		else "void_paid"
+		if resolution.void_paid
+		else None
 	)
 	return resolution, alert
 
@@ -301,8 +307,6 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 		# and the session has to be locked again.
 		frappe.db.rollback()
 		session = frappe.get_doc("Local Payment", session.name, for_update=True)
-	# The consumer's error message would otherwise reach the payer's page. It is kept below and in Error Log.
-	frappe.clear_messages()
 
 	session.authorization = AUTH_FAILED
 	session.authorization_error = str(exc)
