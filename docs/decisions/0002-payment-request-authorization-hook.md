@@ -67,7 +67,8 @@ doc_events = {
 4. calls `set_as_paid()` on the request loaded again after the lock, not on
    the `doc` it received, which may be stale. The call runs as
    Administrator. The caller's user and request state (session, form data,
-   caches) are put back as they were afterwards, even on error.
+   caches, and the `ignore_account_permission` flag that ERPNext sets and
+   never resets) are put back as they were afterwards, even on error.
 
 The hook has no `try/except` and no `commit`. Errors go up to
 `reconcile.authorize()`, which owns the transaction, the retry counter and

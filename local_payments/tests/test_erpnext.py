@@ -84,6 +84,11 @@ class TestAsAdministrator(IntegrationTestCase):
 			frappe.local.cache["lp-probe"] = "administrator"
 		self.assertNotIn("lp-probe", frappe.local.cache)
 
+	def test_resets_the_account_permission_flag_erpnext_leaves_behind(self):
+		with ep.as_administrator():
+			frappe.flags.ignore_account_permission = True
+		self.assertFalse(frappe.flags.ignore_account_permission)
+
 	def test_puts_the_caller_back_when_the_block_raises(self):
 		with self.set_user("Guest"):
 			with self.assertRaises(frappe.ValidationError), ep.as_administrator():

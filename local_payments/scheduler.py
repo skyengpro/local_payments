@@ -136,7 +136,8 @@ def send_daily_alerts() -> None:
 
 def _alert_unresolved(row) -> None:
 	# Another attempt may have paid the session since: nothing left to chase, but do not ask again either.
-	paid = frappe.db.get_value(SESSION, row.parent, "status") != lc.OPEN
+	# A Void session still alerts: the payer may have approved after the cancellation.
+	paid = frappe.db.get_value(SESSION, row.parent, "status") == lc.PAID
 	frappe.db.set_value(ATTEMPT, row.name, "alerted", 1, update_modified=False)
 	if not paid:
 		rc.alert_managers(row.parent, row.attempt_id, "unresolved_timeout")

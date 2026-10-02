@@ -50,7 +50,7 @@ def unbooked_sessions(sessions: Iterable) -> list[str]:
 
 
 def on_payment_authorized(doc, method, status):
-	"""Settle the Payment Request once one of our gateways has been paid. Runs after ERPNext's own method."""
+	"""Settle the Payment Request once one of our gateways is paid. Runs after the controller's method, if any."""
 	is_ours = _is_ours(doc)
 	# Leaves other gateways' requests unlocked.
 	if settlement_action(is_ours, status, doc.docstatus, doc.status) == SKIP:
@@ -113,6 +113,8 @@ def void_open_sessions(doc, method=None):
 def as_administrator():
 	"""Run the block as Administrator, then put the caller's user and request state back as they were."""
 	saved = {name: getattr(frappe.local, name, None) for name in USER_STATE}
+	# ERPNext's create_payment_entry() sets this flag and never resets it.
+	ignore_account_permission = frappe.flags.ignore_account_permission
 	# set_user() writes into the session object, so give it a copy and keep the original untouched.
 	frappe.local.session = frappe._dict(frappe.local.session)
 	try:
@@ -121,6 +123,7 @@ def as_administrator():
 	finally:
 		for name, value in saved.items():
 			setattr(frappe.local, name, value)
+		frappe.flags.ignore_account_permission = ignore_account_permission
 		# Start empty: the caller's cache may be stale, and Administrator's must not outlive the block.
 		frappe.local.cache = {}
 

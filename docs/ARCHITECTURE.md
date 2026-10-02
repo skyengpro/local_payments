@@ -458,7 +458,7 @@ documentation is received.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                                |
 | Every hour                 | `Unresolved` attempts whose `next_check_on` is due, until 72 hours after their deadline. `Pending` or `Failed` authorizations whose `authorization_next_retry_on` is due.            |
-| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session still `Open`, authorizations still `Failed` after the maximum number of tries. |
+| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session not `Paid`, authorizations still `Failed` after the maximum number of tries. |
 
 The jobs decide nothing. `reconcile()` writes the next due date each time it records an outcome:
 decreasing frequency for an `Unresolved` attempt, a doubling backoff for a failed authorization, and no
@@ -478,7 +478,8 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 - `Local Payment` is readable by `Local Payments Manager`, a role created
   by the application, and by System Manager. The document is only ever
   created by code and can only be deleted by Administrator. Its status
-  fields are read-only and are written only by `reconcile()`.
+  fields are read-only and are written only by `reconcile()`, and by the
+  Payment Request cancellation hook, which moves `Open` sessions to `Void`.
 - Guest access to a session only ever goes through its `token`. The
   sequential name is never exposed. The page shows only the title, the
   amount, the currency, and the provider.

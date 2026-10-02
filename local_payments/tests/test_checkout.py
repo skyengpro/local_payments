@@ -150,6 +150,15 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("Cancelled", content)
 		self.assertNotIn(FORM, content)
 
+	def test_void_session_with_an_attempt_in_flight_does_not_poll(self):
+		for attempt in ("Pending", "Unresolved"):
+			with self.subTest(attempt=attempt):
+				session = make_session({"status": attempt}, status="Void")
+				content = self.render(session.token)
+
+				self.assertIn("Cancelled", content)
+				self.assertIn('data-waiting="0"', content)
+
 	def test_unknown_or_malformed_token_gets_a_not_found_page(self):
 		for token in (UNKNOWN_TOKEN, *MALFORMED_TOKENS):
 			with self.subTest(token=token):
