@@ -432,13 +432,13 @@ payment. The PayPal and Razorpay gateways also populate
 
 ## Entry points
 
-| Entry point                                                | Method    | Access                     | Effect                                                                                           |
-| ---------------------------------------------------------- | --------- | -------------------------- | ------------------------------------------------------------------------------------------------ |
-| `/local_payment_checkout?token=…`                       | GET       | guest                      | Displays the session. No side effect.                                                            |
-| `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Checks the number, creates an attempt and calls initiation. Returns the same state as `get_status`. |
-| `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL. |
-| `local_payments.api.mtn_momo_callback?attempt=…`         | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
-| `Local Payment` form: Check, Retry authorization, Cancel | button    | `Local Payments Manager` | Support actions.                                                                                 |
+| Entry point                                                | Method    | Access                     | Effect                                                                                                             |
+| ---------------------------------------------------------- | --------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `/local_payment_checkout?token=…`                       | GET       | guest                      | Displays the session. No side effect.                                                                              |
+| `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Checks the number, creates an attempt and calls initiation. Returns the same state as`get_status`.               |
+| `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
+| `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
+| `Local Payment` form: Check, Retry authorization, Cancel | button    | `Local Payments Manager` | Support actions.                                                                                                   |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
@@ -446,11 +446,11 @@ documentation is received.
 
 ## Scheduled tasks
 
-| Frequency                  | Task                                                                                                                                                                                          |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                              |
+| Frequency                  | Task                                                                                                                                                                                           |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                                |
 | Every hour                 | `Unresolved` attempts whose `next_check_on` is due, until 72 hours after their deadline. `Pending` or `Failed` authorizations whose `authorization_next_retry_on` is due.            |
-| Every day                  | Alerts to `Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session still `Open`, authorizations still `Failed` after the maximum number of tries. |
+| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session still `Open`, authorizations still `Failed` after the maximum number of tries. |
 
 The jobs decide nothing. `reconcile()` writes the next due date each time it records an outcome:
 decreasing frequency for an `Unresolved` attempt, a doubling backoff for a failed authorization, and no

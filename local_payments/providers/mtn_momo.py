@@ -136,14 +136,12 @@ class MtnMomoClient:
 		token_store: TokenStore,
 		cache_key: str,
 		http: requests.Session | None = None,
-		timeout=DEFAULT_TIMEOUT,
 		on_exchange: Callable[[Exchange], None] | None = None,
 	):
 		self.config = config
 		self.token_store = token_store
 		self.cache_key = cache_key
 		self.http = http or requests.Session()
-		self.timeout = timeout
 		# Told about every API call except the token request, whose answer is a credential.
 		self.on_exchange = on_exchange
 
@@ -266,7 +264,7 @@ class MtnMomoClient:
 						**loggable,
 					},
 					json=body,
-					timeout=self.timeout,
+					timeout=DEFAULT_TIMEOUT,
 				)
 			except requests.RequestException as exc:
 				self._report(Exchange(method, url, loggable, body, error=type(exc).__name__))
@@ -307,7 +305,7 @@ class MtnMomoClient:
 					"Authorization": f"Basic {basic_auth_secret}",
 					"Ocp-Apim-Subscription-Key": self.config.subscription_key,
 				},
-				timeout=self.timeout,
+				timeout=DEFAULT_TIMEOUT,
 			)
 		except requests.RequestException:
 			raise _TokenUnavailable
