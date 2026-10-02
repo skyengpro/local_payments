@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-09-25 05:22+0000\n"
+"POT-Creation-Date: 2026-10-02 14:41+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -30,6 +30,10 @@ msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 #: local_payments/api.py:165
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr "Une demande de paiement attend déjà votre validation sur votre téléphone."
+
+#: local_payments/erpnext.py:92
+msgid "A payment was received for this request and is not booked yet. Retry its authorization from {0} before cancelling."
+msgstr "Un paiement a été reçu pour cette demande et n'est pas encore comptabilisé. Relancez son autorisation depuis {0} avant d'annuler."
 
 #. Label of the api_section (Section Break) field in DocType 'MTN MoMo
 #. Settings'
@@ -72,7 +76,7 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:48
+#: local_payments/gateway.py:51
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:55
 msgid "Amount must be strictly positive."
 msgstr ""
@@ -83,7 +87,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:325
+#: local_payments/reconcile.py:329
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -103,7 +107,7 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:326
+#: local_payments/reconcile.py:330
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -242,7 +246,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:324
+#: local_payments/reconcile.py:328
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -257,7 +261,7 @@ msgstr ""
 msgid "Enter your mobile money number."
 msgstr "Saisissez votre numéro mobile money."
 
-#: local_payments/gateway.py:87
+#: local_payments/gateway.py:90
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr "Saisissez votre numéro mobile money : {0} chiffres, avec ou sans +{1}."
 
@@ -507,17 +511,25 @@ msgstr "Paiement"
 msgid "Payment Gateway"
 msgstr ""
 
+#: local_payments/erpnext.py:71
+msgid "Payment Request {0} is not submitted, so it can't be marked as paid."
+msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être marquée comme payée."
+
 #: local_payments/templates/pages/local_payment_checkout.html:20
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:327
+#: local_payments/reconcile.py:331
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
 #: local_payments/templates/pages/local_payment_checkout.html:43
 msgid "Payment received"
 msgstr "Paiement reçu"
+
+#: local_payments/reconcile.py:332
+msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
+msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
 #. Option for the 'Authorization' (Select) field in DocType 'Local Payment'
 #. Option for the 'Status' (Select) field in DocType 'Local Payment Attempt'
@@ -666,7 +678,7 @@ msgstr "Environnement cible"
 msgid "The only currency this gateway accepts."
 msgstr "La seule devise acceptée par cette passerelle."
 
-#: local_payments/gateway.py:105
+#: local_payments/gateway.py:108
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
@@ -682,7 +694,7 @@ msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 msgid "This payment method is not available at the moment."
 msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 
-#: local_payments/gateway.py:94
+#: local_payments/gateway.py:97
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
@@ -730,7 +742,7 @@ msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifie
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
 
-#: local_payments/gateway.py:50
+#: local_payments/gateway.py:53
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
 

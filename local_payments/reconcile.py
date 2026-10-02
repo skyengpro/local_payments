@@ -247,7 +247,9 @@ def _record(
 	session.save(ignore_permissions=True)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
-	alert = "duplicate" if resolution.duplicate else "amount_mismatch" if resolution.amount_mismatch else None
+	alert = next(
+		(flag for flag in ("duplicate", "amount_mismatch", "void_paid") if getattr(resolution, flag)), None
+	)
 	return resolution, alert
 
 
@@ -299,6 +301,8 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 		# and the session has to be locked again.
 		frappe.db.rollback()
 		session = frappe.get_doc("Local Payment", session.name, for_update=True)
+	# The consumer's error message would otherwise reach the payer's page. It is kept below and in Error Log.
+	frappe.clear_messages()
 
 	session.authorization = AUTH_FAILED
 	session.authorization_error = str(exc)
@@ -325,6 +329,7 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
 		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
+		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:
