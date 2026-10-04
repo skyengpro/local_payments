@@ -9,8 +9,7 @@ Workstream : Adapter. Estimation du ticket : 1 jour. Avec les décisions prises 
 Sur un site ERPNext, une facture ou une commande se paie par une Payment Request (PR). Quand la
 session `Local Payment` passe à `Paid`, `reconcile.authorize()` appelle
 `run_method("on_payment_authorized", "Completed")` sur la PR. ERPNext v16 n'implémente pas cette
-méthode (frappe/payments#204) : la PR reste `Requested` et aucune Payment Entry n'est créée. Le
-marchand a l'argent sur son compte MTN et rien dans ses livres.
+méthode (frappe/payments#204) : la PR reste `Requested` et aucune Payment Entry n'est créée. Le marchand a l'argent sur son compte MTN et rien dans ses livres.
 
 LP-11 livre `local_payments/erpnext.py`, prévu par ARCHITECTURE (D6) et par l'ADR 0002 mais
 encore absent du dépôt :
