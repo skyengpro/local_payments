@@ -118,9 +118,8 @@ def as_administrator():
 	# set_user() writes into the session object, so give it a copy and keep the original untouched.
 	frappe.local.session = frappe._dict(frappe.local.session)
 	try:
-		frappe.set_user(
-			"Administrator"
-		)  # nosemgrep: frappe-setuser -- scoped to this block, caller's state restored in finally
+		# nosemgrep: frappe-setuser -- scoped to this block, caller's state restored in finally
+		frappe.set_user("Administrator")
 		yield
 	finally:
 		for name, value in saved.items():
