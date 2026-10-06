@@ -12,10 +12,15 @@ from frappe.utils import get_url
 from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
-from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import CacheTokenStore
+from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import (
+	SANDBOX_HOST,
+	CacheTokenStore,
+)
 from local_payments.providers.mtn_momo import MtnMomoError
+from local_payments.reconcile import MANAGER_ROLE
 
 SETTINGS = "MTN MoMo Settings"
+CONTROLLER = "local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings"
 GATEWAY = "MTN MoMo-momo-test"
 ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
 MSISDN = "237000000001"
@@ -152,6 +157,23 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 				self.settings.update(values)
 				self.settings.save()
 			self.settings.reload()
+
+	def test_production_without_an_alert_manager_warns(self):
+		production = {"enabled": 1, "environment": "Production", "api_base_url": "https://api.mtn.example"}
+		sandbox = {"enabled": 1, "environment": "Sandbox", "api_base_url": f"https://{SANDBOX_HOST}"}
+		cases = {
+			"production, nobody": (production, [], True),
+			"production, a manager": (production, ["lp-manager@example.com"], False),
+			"sandbox, nobody": (sandbox, [], False),
+		}
+		for case, (values, managers, warned) in cases.items():
+			frappe.clear_messages()
+			with self.subTest(case), patch(f"{CONTROLLER}.get_users_with_role", return_value=managers):
+				self.settings.update(values)
+				self.settings.save()
+				messages = [m["message"] for m in frappe.get_message_log()]
+				self.assertEqual(any(MANAGER_ROLE in m for m in messages), warned)
+		frappe.clear_messages()
 
 
 class TestInitiate(IntegrationTestCase):

@@ -53,7 +53,7 @@ class TestScheduler(IntegrationTestCase):
 		# alert_managers() commits, so the class-level rollback can't undo what these tests created.
 		frappe.db.rollback()
 		frappe.db.delete("Notification Log", {"for_user": MANAGER})
-		frappe.db.delete("Error Log", {"method": ["like", "Local Payment scheduler failed%"]})
+		frappe.db.delete("Error Log", {"method": ["like", "Local Payment %"]})
 		frappe.db.delete("Local Payment Attempt", {"parenttype": "Local Payment"})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
 		frappe.db.commit()
@@ -271,6 +271,28 @@ class TestScheduler(IntegrationTestCase):
 
 		self.assertEqual(self.alerts(stale), [])
 		self.assertEqual(len(self.alerts(exhausted)), 1)
+
+	def test_an_alert_nobody_received_is_sent_on_the_next_run(self):
+		stale = make_session({"status": "Unresolved", "expires_on": ago(hours=80)})
+		exhausted = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES)
+		# With nobody to notify, alert_managers() rolls back, which would take the seeded rows with it.
+		frappe.db.commit()
+
+		with patch("local_payments.reconcile.alert_recipients", return_value=[]):
+			sch.send_daily_alerts()
+		self.assertEqual(frappe.db.get_value(sch.ATTEMPT, stale.attempts[0].name, "alerted"), 0)
+		self.assertEqual(frappe.db.get_value(sch.SESSION, exhausted.name, "authorization_alerted"), 0)
+		(error,) = frappe.get_all(
+			"Error Log",
+			{"method": "Local Payment alert with no recipient", "reference_name": stale.name},
+			pluck="error",
+		)
+		self.assertIn(stale.attempts[0].attempt_id, error)
+
+		sch.send_daily_alerts()
+		self.assertEqual(frappe.db.get_value(sch.ATTEMPT, stale.attempts[0].name, "alerted"), 1)
+		self.assertEqual(frappe.db.get_value(sch.SESSION, exhausted.name, "authorization_alerted"), 1)
+		self.assertEqual((len(self.alerts(stale)), len(self.alerts(exhausted))), (1, 1))
 
 	# wiring
 

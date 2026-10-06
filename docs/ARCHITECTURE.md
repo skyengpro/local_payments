@@ -468,7 +468,15 @@ then dropped what is not due yet would let items that are never due crowd out th
 
 Each run takes a bounded batch, oldest due date first, and processes items one at a time: an exception on
 one is logged in Error Log and the others still run. What a run does not reach is picked up by the next one.
-The two daily alerts are recorded by a flag on the row, so a repeat run selects nothing.
+The two daily alerts are recorded by a flag on the row, so a repeat run selects nothing. The flag is
+committed with the notifications, and only if at least one person was notified; otherwise the next day's
+run tries again.
+
+Alerts go to the active holders of `Local Payments Manager`, or to the active System Managers when nobody
+holds the role. With neither, an Error Log ("Local Payment alert with no recipient") keeps the alert text.
+They are desk notifications of type `Alert`, which Frappe never emails. The alerts that `reconcile()`
+raises itself (duplicate, amount mismatch, payment on a `Void` session) have no flag and are sent once:
+with no recipient, only the Error Log keeps them.
 
 ## Security and permissions
 
@@ -520,6 +528,8 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 1. `bench get-app payments --branch version-16`, then
    `git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321`, then `bench get-app local_payments`.
 2. `bench --site <site> install-app payments local_payments`.
+   Then assign `Local Payments Manager` to at least one person: payment alerts go to that role. Saving
+   an enabled `MTN MoMo Settings` in Production shows a warning while nobody holds it.
 3. Create one `MTN MoMo Settings` document per MTN merchant contract, then,
    once Orange Money is implemented, one `Orange Money Settings` document
    per Orange merchant contract. Each with its own credentials; the

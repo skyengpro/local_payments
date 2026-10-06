@@ -9,6 +9,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, get_url
+from frappe.utils.user import get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.gateway import Initiated, LocalPaymentGateway
@@ -20,6 +21,7 @@ from local_payments.providers.mtn_momo import (
 	MtnMomoClient,
 	MtnMomoConfig,
 )
+from local_payments.reconcile import MANAGER_ROLE
 
 SANDBOX_HOST = "sandbox.momodeveloper.mtn.com"
 CALLBACK_PATH = "/api/method/local_payments.api.mtn_momo_callback"
@@ -160,6 +162,7 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 		self.validate_api_base_url()
 		self.validate_msisdn_format()
 		self.set_pending_timeout()
+		self.warn_if_no_alert_manager()
 
 	def validate_gateway_name_unchanged(self):
 		# Without this, Frappe would silently put the document name back into gateway_name.
@@ -194,3 +197,14 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("Pending Timeout (Minutes) cannot be negative."))
 		if timeout == 0:
 			self.pending_timeout_minutes = cint(self.meta.get_field("pending_timeout_minutes").default)
+
+	def warn_if_no_alert_manager(self):
+		if not cint(self.enabled) or self.environment != "Production" or get_users_with_role(MANAGER_ROLE):
+			return
+		frappe.msgprint(
+			_(
+				"No active user has the {0} role. Payment alerts will go to System Managers, or only to the Error Log if there are none. Assign the role to at least one person."
+			).format(MANAGER_ROLE),
+			title=_("Nobody to alert"),
+			indicator="orange",
+		)

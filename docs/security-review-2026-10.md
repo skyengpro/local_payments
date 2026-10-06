@@ -6,7 +6,7 @@
 | Repository reviewed | `skyengpro/local_payments`, branch `lp-11-finalize-erpnext-payment-requests-after-a-local-payment`, commit `a5a3b8e` |
 | Scope | The `local_payments` app only: `api.py`, `gateway.py`, `reconcile.py`, `lifecycle.py`, `erpnext.py`, `scheduler.py`, `hooks.py`, `providers/`, its doctypes, its role fixture and the checkout page |
 | Other apps | `frappe`, `erpnext` and `payments` (v16, maintained by Frappe) were read only to see how they call this app and react to it. No item asks to change them. |
-| Status | Plan agreed on 2026-10-05. Nothing is implemented yet. |
+| Status | Plan agreed on 2026-10-05. LP-SEC-16 implemented on 2026-10-06; the rest is not implemented yet. |
 
 This document lists the security weaknesses and robustness gaps that the current
 code does not address yet, plus the improvements found while investigating the
@@ -242,6 +242,11 @@ which it does. The app can make a missing holder visible:
    to ARCHITECTURE "Installation and configuration".
 5. Optionally, also email the alert through an `Email Account` when one is set
    up, since a bell notification is easy to miss.
+
+**Status (2026-10-06).** Points 1 to 4 are implemented on branch
+`make-authorization-failures-reach-a-person`. Point 5 (email) is deferred. The
+immediate alerts raised by `reconcile()` are not retried when nobody can be
+notified: the Error Log keeps their text.
 
 ### LP-SEC-17. Session token shown in the desk
 

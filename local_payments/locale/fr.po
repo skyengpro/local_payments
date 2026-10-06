@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-02 15:45+0000\n"
+"POT-Creation-Date: 2026-10-06 14:07+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:182
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:185
 msgid "A Sandbox gateway must use {0}."
 msgstr "Une passerelle en Sandbox doit utiliser {0}."
 
@@ -27,7 +27,7 @@ msgstr "Une passerelle en Sandbox doit utiliser {0}."
 msgid "A disabled gateway refuses new payments."
 msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 
-#: local_payments/erpnext.py:96
+#: local_payments/erpnext.py:95
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
 
@@ -35,7 +35,7 @@ msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez da
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr "Une demande de paiement attend déjà votre validation sur votre téléphone."
 
-#: local_payments/erpnext.py:100
+#: local_payments/erpnext.py:99
 msgid "A payment was received for this request and is not booked yet. Retry its authorization from {0} before cancelling."
 msgstr "Un paiement a été reçu pour cette demande et n'est pas encore comptabilisé. Relancez son autorisation depuis {0} avant d'annuler."
 
@@ -50,7 +50,7 @@ msgstr "API"
 msgid "API Base URL"
 msgstr "URL de base de l'API"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:179
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:182
 msgid "API Base URL must be an https:// address."
 msgstr "L'URL de base de l'API doit être une adresse https://."
 
@@ -91,7 +91,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:333
+#: local_payments/reconcile.py:341
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -111,7 +111,7 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:334
+#: local_payments/reconcile.py:342
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -250,7 +250,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:332
+#: local_payments/reconcile.py:340
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -304,7 +304,7 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:168
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:171
 msgid "Gateway Name cannot be changed once saved."
 msgstr "Le nom de la passerelle ne peut plus être modifié après l'enregistrement."
 
@@ -371,7 +371,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr "Longueur du numéro national (MSISDN)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:188
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:191
 msgid "MSISDN National Length must be greater than zero."
 msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro."
 
@@ -383,7 +383,7 @@ msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro
 msgid "MSISDN Prefix"
 msgstr "Préfixe MSISDN"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:186
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:189
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 
@@ -435,6 +435,14 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Next Check On"
 msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:205
+msgid "No active user has the {0} role. Payment alerts will go to System Managers, or only to the Error Log if there are none. Assign the role to at least one person."
+msgstr "Aucun utilisateur actif n'a le rôle {0}. Les alertes de paiement iront aux System Managers, ou seulement dans l'Error Log s'il n'y en a aucun. Attribuez ce rôle à au moins une personne."
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
+msgid "Nobody to alert"
+msgstr "Personne à alerter"
 
 #. Description of a DocType
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
@@ -523,7 +531,7 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:335
+#: local_payments/reconcile.py:343
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
@@ -531,7 +539,7 @@ msgstr ""
 msgid "Payment received"
 msgstr "Paiement reçu"
 
-#: local_payments/reconcile.py:336
+#: local_payments/reconcile.py:344
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
@@ -551,7 +559,7 @@ msgstr ""
 msgid "Pending Timeout (Minutes)"
 msgstr "Délai d'attente (minutes)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:194
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:197
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr "Le délai d'attente (minutes) ne peut pas être négatif."
 

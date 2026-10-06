@@ -25,7 +25,7 @@ from typing import Protocol
 import frappe
 from frappe import _
 from frappe.utils import get_datetime, now_datetime
-from frappe.utils.user import get_users_with_role
+from frappe.utils.user import get_system_managers, get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.lifecycle import ProviderResult, Resolution
@@ -322,11 +322,19 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Failed must survive whatever the caller does next
 
 
-def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
-	"""Tell every Local Payments Manager. Must never break its caller.
+def alert_recipients() -> list[str]:
+	"""Active Local Payments Managers, or active System Managers when nobody holds the role."""
+	return get_users_with_role(MANAGER_ROLE) or get_system_managers(only_name=True)
 
-	`detail` is the attempt id, or the number of tries for `authorization_exhausted`. Alerts that must be
-	sent only once are guarded by the caller through a flag column, not by looking at past notifications.
+
+def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
+	"""Notify `alert_recipients()`. Never raises.
+
+	`detail` is the attempt id, or the number of tries for `authorization_exhausted`.
+
+	Notifications are committed with whatever the caller left pending, so a caller can set its
+	"alerted" flag first and have it kept only if someone was notified. With no recipient, or on
+	error, the pending writes are rolled back and an Error Log keeps the alert text.
 	"""
 	subjects = {
 		"duplicate": _("Duplicate payment on {0} (attempt {1}). Check whether a refund is due."),
@@ -337,7 +345,8 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:
-		for user in get_users_with_role(MANAGER_ROLE):
+		recipients = alert_recipients()
+		for user in recipients:
 			frappe.get_doc(
 				{
 					"doctype": "Notification Log",
@@ -348,6 +357,18 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 					"document_name": session_name,
 				}
 			).insert(ignore_permissions=True)
-		frappe.db.commit()
+		if recipients:
+			frappe.db.commit()  # nosemgrep: frappe-manual-commit -- the alert and the caller's flag together
+			return
+		title, message = "Local Payment alert with no recipient", subject
 	except Exception:
-		frappe.log_error(title=f"Local Payment alert failed: {session_name}")
+		title, message = (
+			f"Local Payment alert failed: {session_name}",
+			f"{subject}\n\n{frappe.get_traceback()}",
+		)
+
+	frappe.db.rollback()
+	frappe.log_error(
+		title=title, message=message, reference_doctype="Local Payment", reference_name=session_name
+	)
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- keep the Error Log
