@@ -68,6 +68,16 @@ AUTHORIZATION_RETRY_BASE = timedelta(hours=1)
 AUTHORIZATION_RETRY_CAP = timedelta(hours=24)
 MAX_AUTHORIZATION_TRIES = 5
 
+# Authorization failures that can pass on their own, so the retries alone handle them. Any other failure
+# is alerted at once: retrying does not fix a configuration error or a bug.
+TRANSIENT_ERRORS = (
+	frappe.QueryDeadlockError,
+	frappe.QueryTimeoutError,
+	frappe.DocumentLockedError,
+	frappe.TimestampMismatchError,
+	frappe.InReadOnlyMode,
+)
+
 SAVEPOINT = "lp_authorize"
 
 
@@ -96,6 +106,11 @@ def authorization_retry_delay(authorization: str, tries: int) -> timedelta:
 	if authorization == AUTH_PENDING:
 		return PENDING_AUTHORIZATION_GRACE
 	return min(AUTHORIZATION_RETRY_BASE * 2 ** max(tries - 1, 0), AUTHORIZATION_RETRY_CAP)
+
+
+def needs_a_person(exc: Exception) -> bool:
+	"""True when an authorization failure will not go away by retrying."""
+	return not isinstance(exc, TRANSIENT_ERRORS)
 
 
 def _next_attempt_check(now, row) -> object:
@@ -321,16 +336,22 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Failed must survive whatever the caller does next
 
+	if needs_a_person(exc) and not session.authorization_failure_alerted:
+		frappe.db.set_value(
+			"Local Payment", session.name, "authorization_failure_alerted", 1, update_modified=False
+		)
+		alert_managers(session.name, None, "authorization_failed")
+
 
 def alert_recipients() -> list[str]:
 	"""Active Local Payments Managers, or active System Managers when nobody holds the role."""
 	return get_users_with_role(MANAGER_ROLE) or get_system_managers(only_name=True)
 
 
-def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
-	"""Notify `alert_recipients()`. Never raises.
+def alert_managers(session_name: str, detail: str | int | None, reason: str) -> None:
+	"""Notify `alert_recipients()`. A failure to notify is logged, not raised.
 
-	`detail` is the attempt id, or the number of tries for `authorization_exhausted`.
+	`detail` is the attempt id, the number of tries for `authorization_exhausted`, or None.
 
 	Notifications are committed with whatever the caller left pending, so a caller can set its
 	"alerted" flag first and have it kept only if someone was notified. With no recipient, or on
@@ -340,6 +361,9 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 		"duplicate": _("Duplicate payment on {0} (attempt {1}). Check whether a refund is due."),
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
 		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
+		"authorization_failed": _(
+			"Payment on {0} is received but its authorization failed in a way retrying will not fix. See the error on the session."
+		),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
 	}

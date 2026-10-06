@@ -31,6 +31,7 @@
   "authorization_error",
   "authorization_next_retry_on",
   "authorization_alerted",
+  "authorization_failure_alerted",
   "success_redirect",
   "section_break_attempts",
   "attempts",
@@ -216,6 +217,14 @@
    "description": "Managers have been told the authorization gave up. Keeps the daily alert to one."
   },
   {
+   "fieldname": "authorization_failure_alerted",
+   "fieldtype": "Check",
+   "label": "Authorization Failure Alerted",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Managers have been told about a failure that needs a person. Keeps that alert to one."
+  },
+  {
    "fieldname": "success_redirect",
    "fieldtype": "Small Text",
    "label": "Success Redirect",
@@ -255,7 +264,7 @@
  "in_create": 1,
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-09-23 00:00:00.000000",
+ "modified": "2026-10-06 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Local Payment",

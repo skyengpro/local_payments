@@ -19,6 +19,7 @@ READ_ONLY_FIELDS = (
 	"authorization_error",
 	"authorization_next_retry_on",
 	"authorization_alerted",
+	"authorization_failure_alerted",
 )
 
 ATTEMPT_FIELDS = (

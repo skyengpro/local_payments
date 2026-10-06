@@ -22,7 +22,7 @@ PROBE_HOOK = "local_payments.tests.test_reconcile.probe"
 
 # What the consumer callback saw and how it should behave, set per test.
 consumer_calls = []
-consumer_state = {"fail": False, "commit_first": False}
+consumer_state = {"fail": False, "error": frappe.ValidationError, "commit_first": False}
 
 
 def consumer(doc, method, *args, **kwargs):
@@ -33,7 +33,7 @@ def consumer(doc, method, *args, **kwargs):
 	if consumer_state["commit_first"]:
 		frappe.db.commit()  # a misbehaving consumer: this drops reconcile's savepoint
 	if consumer_state["fail"]:
-		frappe.throw("Accounting period is closed")
+		frappe.throw("Accounting period is closed", exc=consumer_state["error"])
 
 
 # [session name, then what a second connection found while the consumer was running].
@@ -133,7 +133,7 @@ class TestReconcile(IntegrationTestCase):
 
 	def setUp(self):
 		consumer_calls.clear()
-		consumer_state.update(fail=False, commit_first=False)
+		consumer_state.update(fail=False, error=frappe.ValidationError, commit_first=False)
 		hooks = patch("frappe.get_doc_hooks", return_value={"User": {"on_payment_authorized": [HOOK]}})
 		hooks.start()
 		self.addCleanup(hooks.stop)
@@ -202,6 +202,17 @@ class TestReconcile(IntegrationTestCase):
 		self.assertEqual(session.authorization_tries, 1)
 		self.assertIn("Accounting period is closed", session.authorization_error)
 		self.assertFalse(frappe.db.exists("ToDo", {"description": EFFECT}))
+
+	def test_only_a_failure_retrying_will_not_fix_is_alerted_and_only_once(self):
+		consumer_state["fail"] = True
+		for error, alerts in ((frappe.ValidationError, 1), (frappe.QueryDeadlockError, 0)):
+			with self.subTest(error=error.__name__):
+				consumer_state["error"] = error
+				session = make_session()
+				self.reconcile(session, FakeProvider(succeeded()))
+				rc.authorize(session.name)
+				self.assertEqual(reload(session).authorization_tries, 2)
+				self.assertEqual(len(alerts_for(session)), alerts)
 
 	def test_failed_authorization_can_be_retried_without_asking_the_provider(self):
 		consumer_state["fail"] = True

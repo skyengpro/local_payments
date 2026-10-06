@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-06 14:07+0000\n"
-"PO-Revision-Date: 2026-10-06 14:07+0000\n"
+"POT-Creation-Date: 2026-10-06 14:37+0000\n"
+"PO-Revision-Date: 2026-10-06 14:37+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -89,7 +89,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:341
+#: local_payments/reconcile.py:362
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -109,7 +109,7 @@ msgstr ""
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:342
+#: local_payments/reconcile.py:363
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -134,6 +134,12 @@ msgstr ""
 #. Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Authorization Error"
+msgstr ""
+
+#. Label of the authorization_failure_alerted (Check) field in DocType 'Local
+#. Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Authorization Failure Alerted"
 msgstr ""
 
 #. Label of the authorization_next_retry_on (Datetime) field in DocType 'Local
@@ -248,7 +254,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:340
+#: local_payments/reconcile.py:361
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -390,6 +396,12 @@ msgstr ""
 msgid "MTN MoMo Settings"
 msgstr ""
 
+#. Description of the 'Authorization Failure Alerted' (Check) field in DocType
+#. 'Local Payment'
+#: local_payments/local_payments/doctype/local_payment/local_payment.json
+msgid "Managers have been told about a failure that needs a person. Keeps that alert to one."
+msgstr ""
+
 #. Description of the 'Authorization Alerted' (Check) field in DocType 'Local
 #. Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
@@ -529,7 +541,11 @@ msgstr ""
 msgid "Payment by {0}"
 msgstr ""
 
-#: local_payments/reconcile.py:343
+#: local_payments/reconcile.py:364
+msgid "Payment on {0} is received but its authorization failed in a way retrying will not fix. See the error on the session."
+msgstr ""
+
+#: local_payments/reconcile.py:367
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
@@ -537,7 +553,7 @@ msgstr ""
 msgid "Payment received"
 msgstr ""
 
-#: local_payments/reconcile.py:344
+#: local_payments/reconcile.py:368
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr ""
 
