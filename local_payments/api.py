@@ -255,6 +255,8 @@ def mtn_momo_callback() -> None:
 
 def _check_with_provider(attempt_id: str, session_name: str) -> None:
 	"""Reconcile the attempt, but never fail the poll over it: the payer gets the last known state."""
+	# Drop the messages raised while checking: the payer's page would show them.
+	messages = len(frappe.local.message_log)
 	try:
 		rc.reconcile(attempt_id)
 	except Exception:
@@ -266,6 +268,8 @@ def _check_with_provider(attempt_id: str, session_name: str) -> None:
 			reference_name=session_name,
 			defer_insert=True,
 		)
+	finally:
+		del frappe.local.message_log[messages:]
 
 
 def _session_or_404(token) -> frappe._dict:

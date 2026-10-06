@@ -247,7 +247,15 @@ def _record(
 	session.save(ignore_permissions=True)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
-	alert = "duplicate" if resolution.duplicate else "amount_mismatch" if resolution.amount_mismatch else None
+	alert = (
+		"duplicate"
+		if resolution.duplicate
+		else "amount_mismatch"
+		if resolution.amount_mismatch
+		else "void_paid"
+		if resolution.void_paid
+		else None
+	)
 	return resolution, alert
 
 
@@ -325,6 +333,7 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
 		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
+		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:

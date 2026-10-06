@@ -26,6 +26,17 @@ UNKNOWN_TOKEN = "f" * 32
 MALFORMED_TOKENS = ("", "not-a-token", "F" * 32, "a" * 31, "a" * 33, "' or 1=1 --")
 
 
+# Whether the talkative consumer below fails after speaking, set per test.
+talkative_state = {"fail": False}
+
+
+def talkative_consumer(doc, method, *args):
+	"""A consumer that shows a message, then may fail. Neither must reach the payer."""
+	frappe.msgprint("Consumer note")
+	if talkative_state["fail"]:
+		frappe.throw("Accounting period is closed")
+
+
 class FakeProvider:
 	"""Returns canned results in order and remembers what it was asked."""
 
@@ -139,6 +150,15 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("Cancelled", content)
 		self.assertNotIn(FORM, content)
 
+	def test_void_session_with_an_attempt_in_flight_does_not_poll(self):
+		for attempt in ("Pending", "Unresolved"):
+			with self.subTest(attempt=attempt):
+				session = make_session({"status": attempt}, status="Void")
+				content = self.render(session.token)
+
+				self.assertIn("Cancelled", content)
+				self.assertIn('data-waiting="0"', content)
+
 	def test_unknown_or_malformed_token_gets_a_not_found_page(self):
 		for token in (UNKNOWN_TOKEN, *MALFORMED_TOKENS):
 			with self.subTest(token=token):
@@ -175,6 +195,23 @@ class TestGetStatus(CheckoutTestCase):
 
 		self.assertEqual(state, {"status": "Open", "attempt_status": None, "redirect_url": None})
 		self.assertFalse(provider.calls)
+
+	def test_messages_raised_while_checking_never_reach_the_payer(self):
+		hooks = {"User": {"on_payment_authorized": ["local_payments.tests.test_checkout.talkative_consumer"]}}
+		for fail in (False, True):
+			with self.subTest(fail=fail):
+				talkative_state["fail"] = fail
+				frappe.clear_messages()
+				frappe.msgprint("Before")
+				provider = FakeProvider(ProviderResult("Succeeded", Decimal("5000"), "XAF", "TX-1"))
+				with (
+					patch.object(rc, "_provider_for", return_value=provider),
+					patch("frappe.get_doc_hooks", return_value=hooks),
+				):
+					self.assertEqual(self.get_status(make_session({}))["status"], "Paid")
+				# What was there before the check stays.
+				self.assertEqual([m["message"] for m in frappe.local.message_log], ["Before"])
+		frappe.clear_messages()
 
 	def test_running_attempt_is_checked_once_per_minimum_interval(self):
 		session = make_session({})
