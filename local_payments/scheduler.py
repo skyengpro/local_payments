@@ -98,7 +98,7 @@ def send_daily_alerts() -> None:
 	"""Daily: tell the managers about what the scheduler gave up on.
 
 	Each alert is sent once, recorded by a flag on the row itself so a repeat run selects nothing. The flag
-	is set before calling `alert_managers()`, which keeps it only if someone was notified.
+	is set before calling `alert_managers()`, which keeps it only if the alert went out.
 	"""
 	now = now_datetime()
 	_each(

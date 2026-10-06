@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-06 14:37+0000\n"
+"POT-Creation-Date: 2026-10-06 14:48+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -449,12 +449,8 @@ msgid "Next Check On"
 msgstr ""
 
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:205
-msgid "No active user has the {0} role. Payment alerts will go to System Managers, or only to the Error Log if there are none. Assign the role to at least one person."
-msgstr "Aucun utilisateur actif n'a le rôle {0}. Les alertes de paiement iront aux System Managers, ou seulement dans l'Error Log s'il n'y en a aucun. Attribuez ce rôle à au moins une personne."
-
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
-msgid "Nobody to alert"
-msgstr "Personne à alerter"
+msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
+msgstr "Aucun utilisateur actif n'a le rôle {0}. Les alertes de paiement iront aux System Managers, ou à Administrator s'il n'y en a aucun. Attribuez ce rôle à au moins une personne."
 
 #. Description of a DocType
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
@@ -632,6 +628,10 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Request Data"
 msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
+msgid "Role not assigned"
+msgstr "Rôle non attribué"
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json

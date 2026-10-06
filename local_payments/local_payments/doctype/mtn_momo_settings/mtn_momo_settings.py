@@ -203,8 +203,8 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			return
 		frappe.msgprint(
 			_(
-				"No active user has the {0} role. Payment alerts will go to System Managers, or only to the Error Log if there are none. Assign the role to at least one person."
+				"No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 			).format(MANAGER_ROLE),
-			title=_("Nobody to alert"),
+			title=_("Role not assigned"),
 			indicator="orange",
 		)

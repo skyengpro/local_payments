@@ -15,7 +15,6 @@ from local_payments.lifecycle import ProviderResult
 
 GATEWAY = "Test Local Payment Gateway"
 MANAGER = "lp-reconcile-manager@example.com"
-SYSTEM_MANAGER = "lp-reconcile-sysmgr@example.com"
 EFFECT = "lp-reconcile-effect"
 HOOK = "local_payments.tests.test_reconcile.consumer"
 PROBE_HOOK = "local_payments.tests.test_reconcile.probe"
@@ -107,8 +106,10 @@ def reload(session):
 	return frappe.get_doc("Local Payment", session.name)
 
 
-def alerts_for(session, user=MANAGER):
-	return frappe.get_all("Notification Log", {"for_user": user, "document_name": session.name}, pluck="name")
+def alerts_for(session):
+	return frappe.get_all(
+		"Notification Log", {"for_user": MANAGER, "document_name": session.name}, pluck="name"
+	)
 
 
 class TestReconcile(IntegrationTestCase):
@@ -124,11 +125,6 @@ class TestReconcile(IntegrationTestCase):
 				{"doctype": "User", "email": MANAGER, "first_name": "LP Reconcile"}
 			).insert()
 			user.add_roles(rc.MANAGER_ROLE)
-		if not frappe.db.exists("User", SYSTEM_MANAGER):
-			user = frappe.get_doc(
-				{"doctype": "User", "email": SYSTEM_MANAGER, "first_name": "LP Reconcile SM"}
-			).insert()
-			user.add_roles("System Manager")
 		frappe.db.commit()
 
 	def setUp(self):
@@ -143,7 +139,7 @@ class TestReconcile(IntegrationTestCase):
 		# reconcile() commits, so the class-level rollback can't undo what these tests created.
 		frappe.db.rollback()
 		frappe.db.delete("ToDo", {"description": EFFECT})
-		frappe.db.delete("Notification Log", {"for_user": ["in", [MANAGER, SYSTEM_MANAGER]]})
+		frappe.db.delete("Notification Log", {"for_user": MANAGER})
 		frappe.db.delete("Error Log", {"method": ["like", "Local Payment alert %"]})
 		frappe.db.delete("Local Payment Attempt", {"parenttype": "Local Payment"})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
@@ -331,11 +327,12 @@ class TestReconcile(IntegrationTestCase):
 		)
 		self.assertIn("Duplicate payment", error)
 
-	def test_alert_falls_back_to_system_managers_when_nobody_holds_the_role(self):
-		session = make_session()
+	def test_alerts_fall_back_to_system_managers_then_administrator(self):
 		with patch("local_payments.reconcile.get_users_with_role", return_value=[]):
-			rc.alert_managers(session.name, "A-1", "duplicate")
-		self.assertEqual(len(alerts_for(session, SYSTEM_MANAGER)), 1)
+			with patch("local_payments.reconcile.get_system_managers", return_value=["sm@example.com"]):
+				self.assertEqual(rc.alert_recipients(), ["sm@example.com"])
+			with patch("local_payments.reconcile.get_system_managers", return_value=[]):
+				self.assertEqual(rc.alert_recipients(), ["Administrator"])
 
 	def test_unknown_attempt_is_ignored_without_calling_the_provider(self):
 		provider = FakeProvider()

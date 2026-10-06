@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-06 14:37+0000\n"
-"PO-Revision-Date: 2026-10-06 14:37+0000\n"
+"POT-Creation-Date: 2026-10-06 14:48+0000\n"
+"PO-Revision-Date: 2026-10-06 14:48+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -447,11 +447,7 @@ msgid "Next Check On"
 msgstr ""
 
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:205
-msgid "No active user has the {0} role. Payment alerts will go to System Managers, or only to the Error Log if there are none. Assign the role to at least one person."
-msgstr ""
-
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
-msgid "Nobody to alert"
+msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 msgstr ""
 
 #. Description of a DocType
@@ -629,6 +625,10 @@ msgstr ""
 #. Label of the request_data (Code) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Request Data"
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
+msgid "Role not assigned"
 msgstr ""
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'

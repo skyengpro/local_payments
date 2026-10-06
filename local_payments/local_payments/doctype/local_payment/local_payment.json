@@ -48,7 +48,8 @@
    "no_copy": 1,
    "set_only_once": 1,
    "length": 32,
-   "description": "Guest access key. Generated on insert."
+   "description": "Guest access key. Generated on insert.",
+   "permlevel": 1
   },
   {
    "fieldname": "payment_gateway",
@@ -264,18 +265,20 @@
  "in_create": 1,
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-06 00:00:00.000000",
+ "modified": "2026-10-06 00:00:01.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Local Payment",
  "owner": "Administrator",
  "permissions": [
   {
+   "export": 1,
    "read": 1,
    "report": 1,
    "role": "Local Payments Manager"
   },
   {
+   "export": 1,
    "read": 1,
    "report": 1,
    "role": "System Manager"

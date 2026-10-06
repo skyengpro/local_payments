@@ -254,44 +254,19 @@ class TestScheduler(IntegrationTestCase):
 		self.assertEqual(len(self.alerts(exhausted)), 1)
 		self.assertEqual(self.alerts(retrying), [])
 
-	def test_a_failing_alert_does_not_stop_the_other_alerts(self):
+	def test_a_failed_alert_does_not_stop_the_others_and_is_sent_on_the_next_run(self):
 		stale = make_session({"status": "Unresolved", "expires_on": ago(hours=80)})
 		exhausted = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES)
-		real = rc.alert_managers
-		# A failing alert rolls back, which would take the seeded rows with it. clean_up() removes them.
+		# A failed alert rolls back, which would take the seeded rows with it. clean_up() removes them.
 		frappe.db.commit()
 
-		def flaky(session_name, detail, reason):
-			if reason == "unresolved_timeout":
-				raise Exception("mail down")
-			real(session_name, detail, reason)
-
-		with patch("local_payments.reconcile.alert_managers", side_effect=flaky):
+		# The unresolved alert goes first and fails, the authorization alert goes out.
+		recipients = [Exception("mail down"), [MANAGER]]
+		with patch("local_payments.reconcile.alert_recipients", side_effect=recipients):
 			sch.send_daily_alerts()
-
-		self.assertEqual(self.alerts(stale), [])
-		self.assertEqual(len(self.alerts(exhausted)), 1)
-
-	def test_an_alert_nobody_received_is_sent_on_the_next_run(self):
-		stale = make_session({"status": "Unresolved", "expires_on": ago(hours=80)})
-		exhausted = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES)
-		# With nobody to notify, alert_managers() rolls back, which would take the seeded rows with it.
-		frappe.db.commit()
-
-		with patch("local_payments.reconcile.alert_recipients", return_value=[]):
-			sch.send_daily_alerts()
-		self.assertEqual(frappe.db.get_value(sch.ATTEMPT, stale.attempts[0].name, "alerted"), 0)
-		self.assertEqual(frappe.db.get_value(sch.SESSION, exhausted.name, "authorization_alerted"), 0)
-		(error,) = frappe.get_all(
-			"Error Log",
-			{"method": "Local Payment alert with no recipient", "reference_name": stale.name},
-			pluck="error",
-		)
-		self.assertIn(stale.attempts[0].attempt_id, error)
+		self.assertEqual((len(self.alerts(stale)), len(self.alerts(exhausted))), (0, 1))
 
 		sch.send_daily_alerts()
-		self.assertEqual(frappe.db.get_value(sch.ATTEMPT, stale.attempts[0].name, "alerted"), 1)
-		self.assertEqual(frappe.db.get_value(sch.SESSION, exhausted.name, "authorization_alerted"), 1)
 		self.assertEqual((len(self.alerts(stale)), len(self.alerts(exhausted))), (1, 1))
 
 	# wiring
