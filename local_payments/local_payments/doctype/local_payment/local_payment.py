@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 
+from local_payments import reconcile as rc
+
 TOKEN_LENGTH = 32
 
 
@@ -53,3 +55,21 @@ class LocalPayment(Document):
 	def validate(self):
 		if flt(self.amount) <= 0:
 			frappe.throw(_("Amount must be strictly positive."))
+
+	def onload(self):
+		self.set_onload("can_retry_authorization", rc.can_retry_authorization(self))
+
+
+# Takes the name: as a document method, Frappe would lock the row and wait before running it.
+@frappe.whitelist(methods=["POST"])
+def retry_authorization(name: str) -> str:
+	"""Run the consumer's callback again for one session and return the new authorization state."""
+	frappe.has_permission("Local Payment", "read", name, throw=True)
+	frappe.only_for([rc.MANAGER_ROLE, "System Manager"])
+	# Refuse at once if an authorization is already running on this row.
+	try:
+		frappe.db.get_value("Local Payment", name, "name", for_update=True, wait=False)
+	except frappe.QueryTimeoutError:
+		frappe.throw(_("A payment for this request is being processed. Try again in a moment."))
+	rc.authorize(name)
+	return frappe.db.get_value("Local Payment", name, "authorization")

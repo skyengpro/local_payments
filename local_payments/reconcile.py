@@ -108,6 +108,19 @@ def authorization_retry_delay(authorization: str, tries: int) -> timedelta:
 	return min(AUTHORIZATION_RETRY_BASE * 2 ** max(tries - 1, 0), AUTHORIZATION_RETRY_CAP)
 
 
+def can_retry_authorization(session, now=None) -> bool:
+	"""True when a person may run the consumer's callback again: it failed, or Pending looks stuck."""
+	if session.status != lc.PAID:
+		return False
+	if session.authorization == AUTH_FAILED:
+		return True
+	return (
+		session.authorization == AUTH_PENDING
+		and bool(session.paid_on)
+		and (now or now_datetime()) - get_datetime(session.paid_on) > PENDING_AUTHORIZATION_GRACE
+	)
+
+
 def needs_a_person(exc: Exception) -> bool:
 	"""True when an authorization failure will not go away by retrying."""
 	return not isinstance(exc, TRANSIENT_ERRORS)

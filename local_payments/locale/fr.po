@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-06 14:48+0000\n"
+"POT-Creation-Date: 2026-10-06 16:49+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -28,6 +28,7 @@ msgid "A disabled gateway refuses new payments."
 msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 
 #: local_payments/erpnext.py:95
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:73
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
 
@@ -81,7 +82,7 @@ msgid "Amount Mismatch"
 msgstr ""
 
 #: local_payments/gateway.py:51
-#: local_payments/local_payments/doctype/local_payment/local_payment.py:55
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:57
 msgid "Amount must be strictly positive."
 msgstr ""
 
@@ -91,7 +92,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:362
+#: local_payments/reconcile.py:375
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -111,7 +112,7 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:363
+#: local_payments/reconcile.py:376
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -154,6 +155,14 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Authorization Tries"
 msgstr ""
+
+#: local_payments/local_payments/doctype/local_payment/local_payment.js:18
+msgid "Authorization done."
+msgstr "Autorisation effectuée."
+
+#: local_payments/local_payments/doctype/local_payment/local_payment.js:23
+msgid "Authorization failed again. See the error on the session."
+msgstr "L'autorisation a de nouveau échoué. Voir l'erreur sur la session."
 
 #: local_payments/templates/pages/local_payment_checkout.html:46
 msgid "Cancelled"
@@ -256,7 +265,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:361
+#: local_payments/reconcile.py:374
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -539,11 +548,11 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:364
+#: local_payments/reconcile.py:377
 msgid "Payment on {0} is received but its authorization failed in a way retrying will not fix. See the error on the session."
 msgstr "Paiement reçu sur {0}, mais son autorisation a échoué pour une raison qu'une nouvelle tentative ne corrigera pas. Voir l'erreur sur la session."
 
-#: local_payments/reconcile.py:367
+#: local_payments/reconcile.py:380
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
@@ -551,7 +560,7 @@ msgstr ""
 msgid "Payment received"
 msgstr "Paiement reçu"
 
-#: local_payments/reconcile.py:368
+#: local_payments/reconcile.py:381
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
@@ -628,6 +637,10 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Request Data"
 msgstr ""
+
+#: local_payments/local_payments/doctype/local_payment/local_payment.js:8
+msgid "Retry authorization"
+msgstr "Relancer l'autorisation"
 
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
 msgid "Role not assigned"

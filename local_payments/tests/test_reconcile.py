@@ -1,6 +1,7 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
+from contextlib import contextmanager
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from frappe.utils import add_to_date, now_datetime
 
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
+from local_payments.local_payments.doctype.local_payment.local_payment import retry_authorization
 
 GATEWAY = "Test Local Payment Gateway"
 MANAGER = "lp-reconcile-manager@example.com"
@@ -39,8 +41,8 @@ def consumer(doc, method, *args, **kwargs):
 lock_probe = []
 
 
-def probe(doc, method, *args, **kwargs):
-	"""Consumer that checks, from a second connection, that the session row is locked."""
+def other_connection():
+	"""A second database connection, as another worker would have."""
 	other = get_db(
 		socket=frappe.conf.db_socket,
 		host=frappe.conf.db_host,
@@ -51,6 +53,25 @@ def probe(doc, method, *args, **kwargs):
 	)
 	other.connect()
 	other.sql("set session innodb_lock_wait_timeout = 1")
+	return other
+
+
+@contextmanager
+def locked_elsewhere(session_name):
+	"""Hold a lock on a session row from a second connection, as a running authorization would."""
+	other = other_connection()
+	try:
+		other.begin()
+		other.sql("select name from `tabLocal Payment` where name = %s for update", session_name)
+		yield
+	finally:
+		other.rollback()
+		other.close()
+
+
+def probe(doc, method, *args, **kwargs):
+	"""Consumer that checks, from a second connection, that the session row is locked."""
+	other = other_connection()
 	try:
 		other.sql("select name from `tabLocal Payment` where name = %s for update", lock_probe[0])
 		lock_probe.append("not locked")
@@ -210,18 +231,32 @@ class TestReconcile(IntegrationTestCase):
 				self.assertEqual(reload(session).authorization_tries, 2)
 				self.assertEqual(len(alerts_for(session)), alerts)
 
-	def test_failed_authorization_can_be_retried_without_asking_the_provider(self):
+	def test_a_manager_can_retry_a_failed_authorization_from_the_form(self):
 		consumer_state["fail"] = True
 		session = make_session()
 		self.reconcile(session, FakeProvider(succeeded()))
 
 		consumer_state["fail"] = False
-		self.assertTrue(rc.authorize(session.name))
+		with self.set_user("Guest"), self.assertRaises(frappe.PermissionError):
+			retry_authorization(session.name)
+		with self.set_user(MANAGER):
+			self.assertEqual(retry_authorization(session.name), "Done")
 		session = reload(session)
-		self.assertEqual((session.status, session.authorization), ("Paid", "Done"))
+		self.assertEqual(session.status, "Paid")
 		self.assertEqual(session.authorization_tries, 1)
 		self.assertIsNone(session.authorization_error)
 		self.assertEqual(len(consumer_calls), 2)
+
+	def test_retry_answers_at_once_while_an_authorization_holds_the_session(self):
+		session = make_session({"status": "Succeeded"}, status="Paid", authorization="Failed")
+		frappe.db.commit()
+		with (
+			locked_elsewhere(session.name),
+			self.set_user(MANAGER),
+			self.assertRaises(frappe.ValidationError),
+		):
+			retry_authorization(session.name)
+		self.assertFalse(consumer_calls)
 
 	def test_second_reconcile_on_paid_and_authorized_session_does_nothing(self):
 		session = make_session()
@@ -359,6 +394,14 @@ class TestSchedulingPolicy(IntegrationTestCase):
 	def test_failed_authorization_backoff_doubles_then_is_capped(self):
 		hours = [rc.authorization_retry_delay(rc.AUTH_FAILED, n) / timedelta(hours=1) for n in range(10)]
 		self.assertEqual(hours, [1, 1, 2, 4, 8, 16, 24, 24, 24, 24])
+
+	def test_a_pending_authorization_is_offered_for_retry_only_after_its_grace(self):
+		now = now_datetime()
+		for minutes, offered in ((1, False), (60, True)):
+			session = frappe._dict(
+				status="Paid", authorization="Pending", paid_on=now - timedelta(minutes=minutes)
+			)
+			self.assertEqual(rc.can_retry_authorization(session, now), offered, minutes)
 
 	def test_pending_authorization_only_gets_a_short_grace(self):
 		self.assertEqual(rc.authorization_retry_delay(rc.AUTH_PENDING, 0), rc.PENDING_AUTHORIZATION_GRACE)
