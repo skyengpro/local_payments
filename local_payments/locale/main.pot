@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-07 16:09+0000\n"
-"PO-Revision-Date: 2026-10-07 16:09+0000\n"
+"POT-Creation-Date: 2026-10-07 17:24+0000\n"
+"PO-Revision-Date: 2026-10-07 17:24+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -30,7 +30,7 @@ msgstr ""
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr ""
 
-#: local_payments/api.py:165
+#: local_payments/api.py:177
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr ""
 
@@ -733,11 +733,11 @@ msgstr ""
 msgid "The payment request could not be sent. Check the number and try again."
 msgstr ""
 
-#: local_payments/api.py:191
+#: local_payments/api.py:203
 msgid "This payment can no longer be made from this page."
 msgstr ""
 
-#: local_payments/api.py:134
+#: local_payments/api.py:147
 msgid "This payment method is not available at the moment."
 msgstr ""
 
@@ -745,7 +745,7 @@ msgstr ""
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:281
+#: local_payments/api.py:301
 msgid "This payment page is no longer available."
 msgstr ""
 
@@ -787,6 +787,10 @@ msgstr ""
 #. 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
+msgstr ""
+
+#: local_payments/api.py:138
+msgid "Your payment could not be started. Please try again in a moment."
 msgstr ""
 
 #: local_payments/gateway.py:54

@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-07 16:09+0000\n"
+"POT-Creation-Date: 2026-10-07 17:24+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -32,7 +32,7 @@ msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
 
-#: local_payments/api.py:165
+#: local_payments/api.py:177
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr "Une demande de paiement attend déjà votre validation sur votre téléphone."
 
@@ -735,11 +735,11 @@ msgstr ""
 msgid "The payment request could not be sent. Check the number and try again."
 msgstr "La demande de paiement n'a pas pu être envoyée. Vérifiez le numéro et réessayez."
 
-#: local_payments/api.py:191
+#: local_payments/api.py:203
 msgid "This payment can no longer be made from this page."
 msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 
-#: local_payments/api.py:134
+#: local_payments/api.py:147
 msgid "This payment method is not available at the moment."
 msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 
@@ -747,7 +747,7 @@ msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:281
+#: local_payments/api.py:301
 msgid "This payment page is no longer available."
 msgstr "Cette page de paiement n'est plus disponible."
 
@@ -790,6 +790,10 @@ msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifie
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
+
+#: local_payments/api.py:138
+msgid "Your payment could not be started. Please try again in a moment."
+msgstr "Votre paiement n'a pas pu être lancé. Veuillez réessayer dans un instant."
 
 #: local_payments/gateway.py:54
 msgid "{0} has no minor unit, so the amount must be a whole number."
