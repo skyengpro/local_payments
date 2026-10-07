@@ -178,7 +178,8 @@ def _open_attempt(session_name: str, msisdn: str, timeout_minutes: int) -> str:
 			"next_check_on": now + rc.INITIATION_WINDOW,
 		},
 	)
-	session.save(ignore_permissions=True)
+	# No Version: the attempt has no outcome yet, and the row holds the payer's number.
+	rc.save_state(session, history=False)
 	# If the provider call times out or the worker dies, the attempt must still be there to query. The
 	# commit also releases the row lock before the call.
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- attempt_id on record before the provider call
@@ -193,6 +194,7 @@ def _ensure_open(status: str) -> None:
 def _record_start(session_name: str, attempt_id: str, started: Initiated) -> None:
 	session = frappe.get_doc("Local Payment", session_name, for_update=True)
 	row = rc._attempt_row(session, attempt_id)
+	previous = row.status
 	row.integration_request = started.integration_request
 	# Once the initiation window is over, a status check may have moved the attempt on already.
 	if row.status == lc.INITIATED:
@@ -203,7 +205,7 @@ def _record_start(session_name: str, attempt_id: str, started: Initiated) -> Non
 		else:
 			# The provider has the request: status checks may start.
 			row.next_check_on = now_datetime()
-	session.save(ignore_permissions=True)
+	rc.save_state(session, history=row.status != previous)
 
 
 # The payer has no account, so this is guest by design: it only answers for a valid token.

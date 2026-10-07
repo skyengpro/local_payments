@@ -58,7 +58,9 @@
    "options": "Payment Gateway",
    "reqd": 1,
    "in_list_view": 1,
-   "search_index": 1
+   "search_index": 1,
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "reference_doctype",
@@ -66,7 +68,9 @@
    "label": "Reference DocType",
    "options": "DocType",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "reference_docname",
@@ -74,7 +78,9 @@
    "label": "Reference Name",
    "options": "reference_doctype",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_amount",
@@ -87,14 +93,18 @@
    "label": "Amount",
    "options": "currency",
    "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Link",
    "label": "Currency",
    "options": "Currency",
-   "reqd": 1
+   "reqd": 1,
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "status",
@@ -116,12 +126,16 @@
   {
    "fieldname": "title",
    "fieldtype": "Data",
-   "label": "Title"
+   "label": "Title",
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "description",
    "fieldtype": "Small Text",
-   "label": "Description"
+   "label": "Description",
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "column_break_payer",
@@ -131,18 +145,24 @@
   {
    "fieldname": "payer_name",
    "fieldtype": "Data",
-   "label": "Payer Name"
+   "label": "Payer Name",
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "payer_email",
    "fieldtype": "Data",
    "label": "Payer Email",
-   "options": "Email"
+   "options": "Email",
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "redirect_to",
    "fieldtype": "Small Text",
-   "label": "Redirect To"
+   "label": "Redirect To",
+   "set_only_once": 1,
+   "read_only": 1
   },
   {
    "fieldname": "section_break_outcome",
@@ -259,13 +279,14 @@
    "options": "JSON",
    "read_only": 1,
    "no_copy": 1,
-   "description": "Arguments received by get_payment_url."
+   "description": "Arguments received by get_payment_url.",
+   "set_only_once": 1
   }
  ],
  "in_create": 1,
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-10-06 00:00:01.000000",
+ "modified": "2026-10-07 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Local Payment",
@@ -288,5 +309,6 @@
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
- "title_field": "title"
+ "title_field": "title",
+ "track_changes": 1
 }

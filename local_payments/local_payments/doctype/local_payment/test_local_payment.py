@@ -5,6 +5,8 @@ import frappe
 from frappe.model import get_permitted_fields
 from frappe.tests import IntegrationTestCase
 
+from local_payments import reconcile as rc
+
 MANAGER_ROLE = "Local Payments Manager"
 TEST_GATEWAY = "Test Local Payment Gateway"
 TEST_USER = "lp-manager@example.com"
@@ -78,7 +80,7 @@ def make_session(**overrides):
 			**overrides,
 		}
 	)
-	return doc.insert(ignore_permissions=True)
+	return rc.save_state(doc)
 
 
 class TestLocalPayment(IntegrationTestCase):
@@ -125,7 +127,7 @@ class TestLocalPayment(IntegrationTestCase):
 		with self.assertRaises(frappe.UniqueValidationError):
 			doc = make_session()
 			doc.attempts[0].attempt_id = attempt_id
-			doc.save(ignore_permissions=True)
+			rc.save_state(doc)
 
 	def test_select_options_are_exact(self):
 		meta = frappe.get_meta("Local Payment")
@@ -208,6 +210,21 @@ class TestLocalPayment(IntegrationTestCase):
 		for user in (OTHER_USER, "Guest"):
 			frappe.set_user(user)
 			self.assertFalse(frappe.has_permission("Local Payment", "read", doc=doc), user)
+
+	def test_administrator_cannot_create_or_edit_a_session_outside_the_payment_flow(self):
+		doc = make_session()
+		for fieldname, value in {"amount": 1, "status": "Paid"}.items():
+			with self.subTest(fieldname), self.assertRaises(frappe.CannotChangeConstantError):
+				frappe.client.set_value("Local Payment", doc.name, fieldname, value)
+
+		doc.attempts[0].status = "Succeeded"
+		self.assertRaises(frappe.CannotChangeConstantError, doc.save)
+		# REST saves a child row on its own before its parent.
+		row = frappe.get_doc("Local Payment Attempt", doc.attempts[0].name)
+		row.status = "Succeeded"
+		self.assertRaises(frappe.CannotChangeConstantError, row.save)
+
+		self.assertRaises(frappe.PermissionError, frappe.copy_doc(doc).insert)
 
 	def test_only_administrator_can_delete(self):
 		doc = make_session()

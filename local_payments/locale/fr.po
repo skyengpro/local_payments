@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-06 16:49+0000\n"
+"POT-Creation-Date: 2026-10-07 16:09+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -28,7 +28,7 @@ msgid "A disabled gateway refuses new payments."
 msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 
 #: local_payments/erpnext.py:95
-#: local_payments/local_payments/doctype/local_payment/local_payment.py:73
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:101
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
 
@@ -81,8 +81,8 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:51
-#: local_payments/local_payments/doctype/local_payment/local_payment.py:57
+#: local_payments/gateway.py:52
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:58
 msgid "Amount must be strictly positive."
 msgstr ""
 
@@ -92,7 +92,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:375
+#: local_payments/reconcile.py:389
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -112,7 +112,7 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:376
+#: local_payments/reconcile.py:390
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -122,6 +122,10 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Attempts"
 msgstr ""
+
+#: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.py:43
+msgid "Attempts are set by the payment flow and cannot be edited."
+msgstr "Les tentatives sont renseignées par le traitement du paiement et ne peuvent pas être modifiées."
 
 #. Label of the authorization (Select) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
@@ -265,7 +269,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:374
+#: local_payments/reconcile.py:388
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -280,7 +284,7 @@ msgstr ""
 msgid "Enter your mobile money number."
 msgstr "Saisissez votre numéro mobile money."
 
-#: local_payments/gateway.py:90
+#: local_payments/gateway.py:91
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr "Saisissez votre numéro mobile money : {0} chiffres, avec ou sans +{1}."
 
@@ -548,11 +552,11 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:380
+#: local_payments/reconcile.py:394
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
-#: local_payments/reconcile.py:377
+#: local_payments/reconcile.py:391
 msgid "Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
 msgstr "Paiement reçu sur {0}, mais son autorisation a échoué. Corrigez la cause indiquée sur la session, puis relancez."
 
@@ -560,7 +564,7 @@ msgstr "Paiement reçu sur {0}, mais son autorisation a échoué. Corrigez la ca
 msgid "Payment received"
 msgstr "Paiement reçu"
 
-#: local_payments/reconcile.py:381
+#: local_payments/reconcile.py:395
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
@@ -662,6 +666,10 @@ msgstr "Envoyer le rappel"
 msgid "Sent as X-Target-Environment. In production, the value provided by MTN."
 msgstr "Envoyé dans X-Target-Environment. En production, la valeur fournie par MTN."
 
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:69
+msgid "Sessions are created by the payment flow only."
+msgstr "Seul le traitement du paiement peut créer une session."
+
 #. Description of the 'Payer Message' (Data) field in DocType 'MTN MoMo
 #. Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
@@ -719,7 +727,7 @@ msgstr "Environnement cible"
 msgid "The only currency this gateway accepts."
 msgstr "La seule devise acceptée par cette passerelle."
 
-#: local_payments/gateway.py:108
+#: local_payments/gateway.py:109
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
@@ -727,7 +735,7 @@ msgstr ""
 msgid "The payment request could not be sent. Check the number and try again."
 msgstr "La demande de paiement n'a pas pu être envoyée. Vérifiez le numéro et réessayez."
 
-#: local_payments/api.py:190
+#: local_payments/api.py:191
 msgid "This payment can no longer be made from this page."
 msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 
@@ -735,11 +743,11 @@ msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 msgid "This payment method is not available at the moment."
 msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 
-#: local_payments/gateway.py:97
+#: local_payments/gateway.py:98
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:279
+#: local_payments/api.py:281
 msgid "This payment page is no longer available."
 msgstr "Cette page de paiement n'est plus disponible."
 
@@ -783,7 +791,11 @@ msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifie
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
 
-#: local_payments/gateway.py:53
+#: local_payments/gateway.py:54
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
+
+#: local_payments/local_payments/doctype/local_payment/local_payment.py:83
+msgid "{0} is set by the payment flow and cannot be edited."
+msgstr "{0} est renseigné par le traitement du paiement et ne peut pas être modifié."
 

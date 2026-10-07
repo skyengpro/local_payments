@@ -59,20 +59,22 @@ def make_session(*attempts, status="Open", **extra):
 		}
 		for attempt in attempts
 	]
-	return frappe.get_doc(
-		{
-			"doctype": "Local Payment",
-			"payment_gateway": GATEWAY,
-			"reference_doctype": "User",
-			"reference_docname": "Administrator",
-			"amount": 5000,
-			"currency": "XAF",
-			"title": "Invoice 42",
-			"status": status,
-			"attempts": rows,
-			**extra,
-		}
-	).insert(ignore_permissions=True)
+	return rc.save_state(
+		frappe.get_doc(
+			{
+				"doctype": "Local Payment",
+				"payment_gateway": GATEWAY,
+				"reference_doctype": "User",
+				"reference_docname": "Administrator",
+				"amount": 5000,
+				"currency": "XAF",
+				"title": "Invoice 42",
+				"status": status,
+				"attempts": rows,
+				**extra,
+			}
+		)
+	)
 
 
 class CheckoutTestCase(IntegrationTestCase):

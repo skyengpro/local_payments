@@ -175,7 +175,8 @@ class TestSettlePaymentRequest(IntegrationTestCase):
 				"authorization": authorization,
 				"attempts": [{"attempt_id": frappe.generate_hash(length=36), "status": attempt}],
 			}
-		).insert(ignore_permissions=True)
+		)
+		rc.save_state(session)
 		frappe.db.commit()
 		return session
 

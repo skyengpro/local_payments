@@ -12,6 +12,7 @@ from frappe.utils import get_url
 from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
+from local_payments import reconcile as rc
 from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import (
 	SANDBOX_HOST,
 	CacheTokenStore,
@@ -189,16 +190,18 @@ class TestInitiate(IntegrationTestCase):
 		self.settings = make_settings()
 		self.addCleanup(CacheTokenStore().delete, self.settings.token_cache_key)
 		# The Integration Request links to the session, so it has to exist.
-		self.session = frappe.get_doc(
-			{
-				"doctype": "Local Payment",
-				"payment_gateway": GATEWAY,
-				"reference_doctype": "User",
-				"reference_docname": "Administrator",
-				"amount": 5000,
-				"currency": "XAF",
-			}
-		).insert(ignore_permissions=True)
+		self.session = rc.save_state(
+			frappe.get_doc(
+				{
+					"doctype": "Local Payment",
+					"payment_gateway": GATEWAY,
+					"reference_doctype": "User",
+					"reference_docname": "Administrator",
+					"amount": 5000,
+					"currency": "XAF",
+				}
+			)
+		)
 
 	def initiate(self, *replies, session=None):
 		session = session or self.session

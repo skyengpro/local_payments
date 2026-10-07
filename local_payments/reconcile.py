@@ -180,6 +180,19 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 	return resolution
 
 
+def save_state(session, history: bool = True):
+	"""Insert or save a session as the payment flow. Any other save may not touch its state.
+
+	`history=False` leaves no Version, for saves that change no status. Returns the session.
+	"""
+	session.flags.local_payments_state = True
+	try:
+		# None keeps Frappe's default, which writes no Version under tests.
+		return session.save(ignore_permissions=True, ignore_version=None if history else True)
+	finally:
+		session.flags.local_payments_state = False
+
+
 def authorize(session_name: str) -> bool:
 	"""Run the consumer's `on_payment_authorized` for a Paid session. True if it is now Done.
 
@@ -203,7 +216,7 @@ def authorize(session_name: str) -> bool:
 	session.authorization_next_retry_on = None
 	if isinstance(redirect, str):
 		session.success_redirect = redirect
-	session.save(ignore_permissions=True)
+	save_state(session)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- effects and Done commit together (D4)
 	return True
 
@@ -228,7 +241,7 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 
 	row.last_checked_on = now
 	row.check_count = (row.check_count or 0) + 1
-	session.save(ignore_permissions=True)
+	save_state(session, history=False)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- release the lock before the provider call
 	return session.name, session.payment_gateway, frappe.parse_json(row.provider_data or "{}")
 
@@ -253,6 +266,7 @@ def _record(
 		past_deadline=bool(row.expires_on) and now >= get_datetime(row.expires_on),
 	)
 
+	previous = row.status
 	row.status = resolution.attempt_status
 	row.duplicate = int(resolution.duplicate)
 	row.amount_mismatch = int(resolution.amount_mismatch)
@@ -272,7 +286,7 @@ def _record(
 		session.authorization = AUTH_PENDING
 		session.authorization_next_retry_on = _next_authorization_retry(now, session)
 
-	session.save(ignore_permissions=True)
+	save_state(session, history=row.status != previous)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
 	alert = (
@@ -340,7 +354,7 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	session.authorization_error = str(exc)
 	session.authorization_tries = (session.authorization_tries or 0) + 1
 	session.authorization_next_retry_on = _next_authorization_retry(now_datetime(), session)
-	session.save(ignore_permissions=True)
+	save_state(session)
 	frappe.log_error(
 		title=f"Local Payment authorization failed: {session.name}",
 		message=traceback,

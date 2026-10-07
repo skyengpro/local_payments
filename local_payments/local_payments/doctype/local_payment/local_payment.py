@@ -3,6 +3,7 @@
 
 import frappe
 from frappe import _
+from frappe.model import display_fieldtypes, table_fields
 from frappe.model.document import Document
 from frappe.utils import flt
 
@@ -55,6 +56,33 @@ class LocalPayment(Document):
 	def validate(self):
 		if flt(self.amount) <= 0:
 			frappe.throw(_("Amount must be strictly positive."))
+		self.validate_state_unchanged()
+
+	def validate_state_unchanged(self):
+		"""Only reconcile.save_state() creates a session or writes its state.
+
+		The state is every field not fixed at creation (set_only_once). Any other save must leave it as it is.
+		"""
+		if self.flags.local_payments_state:
+			return
+		if self.is_new():
+			frappe.throw(_("Sessions are created by the payment flow only."), exc=frappe.PermissionError)
+		before = self.get_doc_before_save()
+		for df in self.meta.fields:
+			if df.set_only_once or df.get("is_custom_field") or df.fieldtype in display_fieldtypes:
+				continue
+			if df.fieldtype in table_fields:
+				changed = not self.is_child_table_same(df.fieldname)
+			else:
+				# None, 0 and "" all mean unset: a value not loaded yet reads as None, the database holds 0.
+				changed = self.has_value_changed(df.fieldname) and bool(
+					before.get(df.fieldname) or self.get(df.fieldname)
+				)
+			if changed:
+				frappe.throw(
+					_("{0} is set by the payment flow and cannot be edited.").format(_(df.label)),
+					exc=frappe.CannotChangeConstantError,
+				)
 
 	def onload(self):
 		self.set_onload("can_retry_authorization", rc.can_retry_authorization(self))

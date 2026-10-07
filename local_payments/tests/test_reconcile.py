@@ -107,20 +107,22 @@ def make_session(*attempts, status="Open", **extra):
 		}
 		for attempt in attempts or [{}]
 	]
-	return frappe.get_doc(
-		{
-			"doctype": "Local Payment",
-			"payment_gateway": GATEWAY,
-			"reference_doctype": "User",
-			"reference_docname": "Administrator",
-			"amount": 5000,
-			"currency": "XAF",
-			"request_data": frappe.as_json({"order_id": "ORD-1", "title": "Invoice"}),
-			"status": status,
-			"attempts": rows,
-			**extra,
-		}
-	).insert(ignore_permissions=True)
+	return rc.save_state(
+		frappe.get_doc(
+			{
+				"doctype": "Local Payment",
+				"payment_gateway": GATEWAY,
+				"reference_doctype": "User",
+				"reference_docname": "Administrator",
+				"amount": 5000,
+				"currency": "XAF",
+				"request_data": frappe.as_json({"order_id": "ORD-1", "title": "Invoice"}),
+				"status": status,
+				"attempts": rows,
+				**extra,
+			}
+		)
+	)
 
 
 def reload(session):
@@ -162,6 +164,8 @@ class TestReconcile(IntegrationTestCase):
 		frappe.db.delete("ToDo", {"description": EFFECT})
 		frappe.db.delete("Notification Log", {"for_user": MANAGER})
 		frappe.db.delete("Error Log", {"method": ["like", "Local Payment alert %"]})
+		sessions = frappe.get_all("Local Payment", {"payment_gateway": GATEWAY}, pluck="name")
+		frappe.db.delete("Version", {"ref_doctype": "Local Payment", "docname": ["in", sessions]})
 		frappe.db.delete("Local Payment Attempt", {"parenttype": "Local Payment"})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
 		frappe.db.commit()
@@ -190,6 +194,18 @@ class TestReconcile(IntegrationTestCase):
 		self.assertEqual(data.title, "Invoice")
 		self.assertTrue(frappe.db.exists("ToDo", {"description": EFFECT}))
 		self.assertIsNone(frappe.flags.data)
+
+	@patch.object(frappe, "in_test", False)  # Frappe writes no Version under tests by default
+	def test_only_an_outcome_leaves_a_version_not_each_check(self):
+		session = make_session()
+		versions = {"ref_doctype": "Local Payment", "docname": session.name}
+		self.reconcile(session, FakeProvider(ProviderResult("Pending")))
+		self.assertFalse(frappe.db.exists("Version", versions))
+
+		frappe.db.set_value("Local Payment Attempt", session.attempts[0].name, "last_checked_on", None)
+		frappe.db.commit()
+		self.reconcile(session, FakeProvider(succeeded()))
+		self.assertTrue(frappe.db.exists("Version", versions))
 
 	def test_provider_status_is_kept_on_the_attempt(self):
 		session = make_session()

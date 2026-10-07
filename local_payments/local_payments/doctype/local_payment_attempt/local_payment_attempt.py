@@ -1,6 +1,8 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
+import frappe
+from frappe import _
 from frappe.model.document import Document
 
 
@@ -34,4 +36,10 @@ class LocalPaymentAttempt(Document):
 		status: DF.Literal["Initiated", "Pending", "Succeeded", "Failed", "Expired", "Unresolved", "Error"]
 	# end: auto-generated types
 
-	pass
+	def validate(self):
+		# Rows are written with their session, which never runs this. A row saved on its own would skip the
+		# session's checks.
+		frappe.throw(
+			_("Attempts are set by the payment flow and cannot be edited."),
+			exc=frappe.CannotChangeConstantError,
+		)
