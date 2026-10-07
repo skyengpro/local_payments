@@ -161,8 +161,8 @@ msgid "Authorization done."
 msgstr "Autorisation effectuée."
 
 #: local_payments/local_payments/doctype/local_payment/local_payment.js:23
-msgid "Authorization failed again. See the error on the session."
-msgstr "L'autorisation a de nouveau échoué. Voir l'erreur sur la session."
+msgid "Authorization failed. See the error on the session."
+msgstr "L'autorisation a échoué. Voir l'erreur sur la session."
 
 #: local_payments/templates/pages/local_payment_checkout.html:46
 msgid "Cancelled"
@@ -548,13 +548,13 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:377
-msgid "Payment on {0} is received but its authorization failed in a way retrying will not fix. See the error on the session."
-msgstr "Paiement reçu sur {0}, mais son autorisation a échoué pour une raison qu'une nouvelle tentative ne corrigera pas. Voir l'erreur sur la session."
-
 #: local_payments/reconcile.py:380
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
+
+#: local_payments/reconcile.py:377
+msgid "Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
+msgstr "Paiement reçu sur {0}, mais son autorisation a échoué. Corrigez la cause indiquée sur la session, puis relancez."
 
 #: local_payments/templates/pages/local_payment_checkout.html:43
 msgid "Payment received"

@@ -20,9 +20,7 @@ frappe.ui.form.on("Local Payment", {
 						});
 					} else if (r.message === "Failed") {
 						frappe.show_alert({
-							message: __(
-								"Authorization failed again. See the error on the session."
-							),
+							message: __("Authorization failed. See the error on the session."),
 							indicator: "red",
 						});
 					}

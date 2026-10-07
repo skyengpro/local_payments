@@ -375,7 +375,7 @@ def alert_managers(session_name: str, detail: str | int | None, reason: str) -> 
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
 		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
 		"authorization_failed": _(
-			"Payment on {0} is received but its authorization failed in a way retrying will not fix. See the error on the session."
+			"Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
 		),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),

@@ -64,8 +64,8 @@ class LocalPayment(Document):
 @frappe.whitelist(methods=["POST"])
 def retry_authorization(name: str) -> str:
 	"""Run the consumer's callback again for one session and return the new authorization state."""
-	frappe.has_permission("Local Payment", "read", name, throw=True)
 	frappe.only_for([rc.MANAGER_ROLE, "System Manager"])
+	frappe.has_permission("Local Payment", "read", name, throw=True)
 	# Refuse at once if an authorization is already running on this row.
 	try:
 		frappe.db.get_value("Local Payment", name, "name", for_update=True, wait=False)
