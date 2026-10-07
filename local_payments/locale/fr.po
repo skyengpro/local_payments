@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-07 17:24+0000\n"
+"POT-Creation-Date: 2026-10-07 18:00+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -18,7 +18,7 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:185
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:215
 msgid "A Sandbox gateway must use {0}."
 msgstr "Une passerelle en Sandbox doit utiliser {0}."
 
@@ -51,7 +51,7 @@ msgstr "API"
 msgid "API Base URL"
 msgstr "URL de base de l'API"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:182
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:212
 msgid "API Base URL must be an https:// address."
 msgstr "L'URL de base de l'API doit être une adresse https://."
 
@@ -323,7 +323,7 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:171
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:201
 msgid "Gateway Name cannot be changed once saved."
 msgstr "Le nom de la passerelle ne peut plus être modifié après l'enregistrement."
 
@@ -390,7 +390,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr "Longueur du numéro national (MSISDN)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:191
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:221
 msgid "MSISDN National Length must be greater than zero."
 msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro."
 
@@ -402,7 +402,7 @@ msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro
 msgid "MSISDN Prefix"
 msgstr "Préfixe MSISDN"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:189
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:219
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 
@@ -410,6 +410,10 @@ msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "MTN MoMo Settings"
 msgstr "Paramètres MTN MoMo"
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:239
+msgid "MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
+msgstr "MTN ne rappelle qu'une adresse https://. Renseignez host_name dans la configuration du site avec l'adresse publique https:// du site, ou décochez Envoyer le rappel."
 
 #. Description of the 'Authorization Failure Alerted' (Check) field in DocType
 #. 'Local Payment'
@@ -461,7 +465,7 @@ msgstr ""
 msgid "Next Check On"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:205
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:248
 msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 msgstr "Aucun utilisateur actif n'a le rôle {0}. Les alertes de paiement iront aux System Managers, ou à Administrator s'il n'y en a aucun. Attribuez ce rôle à au moins une personne."
 
@@ -584,7 +588,7 @@ msgstr ""
 msgid "Pending Timeout (Minutes)"
 msgstr "Délai d'attente (minutes)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:197
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:227
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr "Le délai d'attente (minutes) ne peut pas être négatif."
 
@@ -646,7 +650,7 @@ msgstr ""
 msgid "Retry authorization"
 msgstr "Relancer l'autorisation"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:208
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:251
 msgid "Role not assigned"
 msgstr "Rôle non attribué"
 
