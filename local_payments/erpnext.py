@@ -106,7 +106,7 @@ def void_open_sessions(doc, method=None):
 		if row.status == lc.OPEN:
 			session = frappe.get_doc("Local Payment", row.name)
 			session.status = lc.VOID
-			session.save(ignore_permissions=True)
+			rc.save_state(session)
 
 
 @contextmanager

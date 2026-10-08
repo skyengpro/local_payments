@@ -1,6 +1,7 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
+import json
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -21,6 +22,8 @@ PROVIDER = "Local Payments Test"
 PAGE = "local_payment_checkout"
 # The form element itself: the page script names the same id.
 FORM = 'id="lp-start-attempt"'
+
+ERROR_LOG_QUEUE = "insert_queue_for_Error Log"
 
 UNKNOWN_TOKEN = "f" * 32
 MALFORMED_TOKENS = ("", "not-a-token", "F" * 32, "a" * 31, "a" * 33, "' or 1=1 --")
@@ -59,20 +62,22 @@ def make_session(*attempts, status="Open", **extra):
 		}
 		for attempt in attempts
 	]
-	return frappe.get_doc(
-		{
-			"doctype": "Local Payment",
-			"payment_gateway": GATEWAY,
-			"reference_doctype": "User",
-			"reference_docname": "Administrator",
-			"amount": 5000,
-			"currency": "XAF",
-			"title": "Invoice 42",
-			"status": status,
-			"attempts": rows,
-			**extra,
-		}
-	).insert(ignore_permissions=True)
+	return rc.save_state(
+		frappe.get_doc(
+			{
+				"doctype": "Local Payment",
+				"payment_gateway": GATEWAY,
+				"reference_doctype": "User",
+				"reference_docname": "Administrator",
+				"amount": 5000,
+				"currency": "XAF",
+				"title": "Invoice 42",
+				"status": status,
+				"attempts": rows,
+				**extra,
+			}
+		)
+	)
 
 
 class CheckoutTestCase(IntegrationTestCase):
@@ -93,9 +98,17 @@ class CheckoutTestCase(IntegrationTestCase):
 		frappe.db.commit()
 
 	def setUp(self):
+		self.queued_logs = frappe.cache.llen(ERROR_LOG_QUEUE)
 		self.addCleanup(self.clean_up)
 
+	def logged(self, title) -> list[str]:
+		"""The errors this test logged under this title, read from the Redis queue api.py writes them to."""
+		queued = map(json.loads, frappe.cache.lrange(ERROR_LOG_QUEUE, self.queued_logs, -1))
+		return [log["error"] for log in queued if log["method"] == title]
+
 	def clean_up(self):
+		while frappe.cache.llen(ERROR_LOG_QUEUE) > self.queued_logs:
+			frappe.cache.rpop(ERROR_LOG_QUEUE)
 		# get_status commits through reconcile(), so the class rollback can't undo these sessions.
 		frappe.db.rollback()
 		frappe.db.delete("Local Payment Attempt", {"parenttype": "Local Payment"})
@@ -244,16 +257,13 @@ class TestGetStatus(CheckoutTestCase):
 
 	def test_provider_failure_leaves_the_payer_with_the_last_known_state(self):
 		session = make_session({})
-		queue = "insert_queue_for_Error Log"
-		before = frappe.cache.llen(queue)
 
 		with patch.object(rc, "_provider_for", side_effect=Exception("gateway timeout")):
 			state = self.get_status(session)
 
 		self.assertEqual((state["status"], state["attempt_status"]), ("Open", "Pending"))
-		# Logged out of band, because Frappe rolls a GET request back on its way out.
-		self.assertEqual(frappe.cache.llen(queue), before + 1)
-		frappe.cache.lpop(queue)
+		(log,) = self.logged("Local Payment status check failed")
+		self.assertIn("gateway timeout", log)
 
 	def test_an_exit_url_that_is_not_a_web_address_is_dropped(self):
 		session = make_session({"status": "Succeeded"}, status="Paid", redirect_to="javascript:alert(1)")

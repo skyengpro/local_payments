@@ -21,7 +21,7 @@
 
 	{% if status == "Open" %}
 		<form id="lp-start-attempt" class="lp-form {% if waiting %}hidden{% endif %}" novalidate
-			data-start-failed="{{ _('The payment request could not be sent. Check the number and try again.')|e }}"
+			data-start-failed="{{ _('The payment service is not responding at the moment. Please try again in a few minutes.')|e }}"
 			data-empty-number="{{ _('Enter your mobile money number.')|e }}">
 			<div class="form-group">
 				<label for="lp-msisdn">{{ _("Mobile money number") }}</label>

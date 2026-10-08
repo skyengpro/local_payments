@@ -2,7 +2,10 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe.model import get_permitted_fields
 from frappe.tests import IntegrationTestCase
+
+from local_payments import reconcile as rc
 
 MANAGER_ROLE = "Local Payments Manager"
 TEST_GATEWAY = "Test Local Payment Gateway"
@@ -19,6 +22,7 @@ READ_ONLY_FIELDS = (
 	"authorization_error",
 	"authorization_next_retry_on",
 	"authorization_alerted",
+	"authorization_failure_alerted",
 )
 
 ATTEMPT_FIELDS = (
@@ -76,7 +80,7 @@ def make_session(**overrides):
 			**overrides,
 		}
 	)
-	return doc.insert(ignore_permissions=True)
+	return rc.save_state(doc)
 
 
 class TestLocalPayment(IntegrationTestCase):
@@ -123,7 +127,7 @@ class TestLocalPayment(IntegrationTestCase):
 		with self.assertRaises(frappe.UniqueValidationError):
 			doc = make_session()
 			doc.attempts[0].attempt_id = attempt_id
-			doc.save(ignore_permissions=True)
+			rc.save_state(doc)
 
 	def test_select_options_are_exact(self):
 		meta = frappe.get_meta("Local Payment")
@@ -183,21 +187,44 @@ class TestLocalPayment(IntegrationTestCase):
 			for right in ("create", "write", "delete", "submit", "cancel", "amend", "import"):
 				self.assertFalse(perm.get(right), f"{perm.role} has {right}")
 
-	def test_manager_can_read_but_not_create_or_delete(self):
+	def test_manager_can_read_and_export_sessions_only(self):
 		doc = make_session()
 		frappe.set_user(TEST_USER)
 		self.assertTrue(frappe.has_permission("Local Payment", "read", doc=doc))
+		self.assertTrue(frappe.permissions.can_export("Local Payment"))
+		# The token opens the checkout page, so it stays out of the form and of exports.
+		self.assertNotIn("token", get_permitted_fields("Local Payment"))
+		doc.apply_fieldlevel_read_permissions()
+		self.assertIsNone(doc.get("token"))
 		self.assertFalse(frappe.has_permission("Local Payment", "create"))
 		self.assertFalse(frappe.has_permission("Local Payment", "write", doc=doc))
 		self.assertFalse(frappe.has_permission("Local Payment", "delete", doc=doc))
 		with self.assertRaises(frappe.PermissionError):
 			frappe.delete_doc("Local Payment", doc.name)
+		# The role gives no access to merchant credentials or to site-wide logs.
+		for doctype in ("MTN MoMo Settings", "Integration Request", "Error Log"):
+			self.assertFalse(frappe.has_permission(doctype, "read"), doctype)
 
 	def test_unrelated_user_and_guest_cannot_read(self):
 		doc = make_session()
 		for user in (OTHER_USER, "Guest"):
 			frappe.set_user(user)
 			self.assertFalse(frappe.has_permission("Local Payment", "read", doc=doc), user)
+
+	def test_administrator_cannot_create_or_edit_a_session_outside_the_payment_flow(self):
+		doc = make_session()
+		for fieldname, value in {"amount": 1, "status": "Paid"}.items():
+			with self.subTest(fieldname), self.assertRaises(frappe.CannotChangeConstantError):
+				frappe.client.set_value("Local Payment", doc.name, fieldname, value)
+
+		doc.attempts[0].status = "Succeeded"
+		self.assertRaises(frappe.CannotChangeConstantError, doc.save)
+		# REST saves a child row on its own before its parent.
+		row = frappe.get_doc("Local Payment Attempt", doc.attempts[0].name)
+		row.status = "Succeeded"
+		self.assertRaises(frappe.CannotChangeConstantError, row.save)
+
+		self.assertRaises(frappe.PermissionError, frappe.copy_doc(doc).insert)
 
 	def test_only_administrator_can_delete(self):
 		doc = make_session()

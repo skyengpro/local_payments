@@ -3,19 +3,28 @@
 
 import base64
 import json
+import unittest
 from unittest.mock import MagicMock, patch
 
 import frappe
 import requests
 from frappe.tests import IntegrationTestCase
-from frappe.utils import get_url
+from frappe.utils import set_request
 from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
-from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import CacheTokenStore
+from local_payments import reconcile as rc
+from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import (
+	CALLBACK_PATH,
+	SANDBOX_HOST,
+	CacheTokenStore,
+	callback_base,
+)
 from local_payments.providers.mtn_momo import MtnMomoError
+from local_payments.reconcile import MANAGER_ROLE
 
 SETTINGS = "MTN MoMo Settings"
+CONTROLLER = "local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings"
 GATEWAY = "MTN MoMo-momo-test"
 ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
 MSISDN = "237000000001"
@@ -30,6 +39,32 @@ def http_response(status, body=None):
 
 def token_response():
 	return http_response(200, {"access_token": "fake-access-token", "expires_in": 3600})
+
+
+def site_host(host_name):
+	"""This host_name in the site config, without its hostname alias."""
+	return patch.dict(frappe.conf, {"host_name": host_name, "hostname": None})
+
+
+class TestCallbackBase(unittest.TestCase):
+	def test_only_an_http_address_with_a_host_is_used_and_production_needs_https(self):
+		cases = {
+			"https": ("https://pay.example.com", True, "https://pay.example.com"),
+			"port kept, path and spaces dropped": (
+				" https://pay.example.com:8443/ ",
+				True,
+				"https://pay.example.com:8443",
+			),
+			"http in production": ("http://pay.example.com", True, None),
+			"http in sandbox": ("http://pay.example.com", False, "http://pay.example.com"),
+			"no scheme reads as http": ("pay.example.com", False, "http://pay.example.com"),
+			"credentials dropped": ("https://user:secret@pay.example.com", True, "https://pay.example.com"),
+			"invalid port": ("https://pay.example.com:abc", True, None),
+			"not set": (None, False, None),
+		}
+		for case, (host_name, production, expected) in cases.items():
+			with self.subTest(case):
+				self.assertEqual(callback_base(host_name, production), expected)
 
 
 def make_settings(**overrides):
@@ -153,6 +188,44 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 				self.settings.save()
 			self.settings.reload()
 
+	def test_production_without_an_alert_manager_warns(self):
+		production = {
+			"enabled": 1,
+			"environment": "Production",
+			"api_base_url": "https://api.mtn.example",
+			"send_callback": 0,
+		}
+		sandbox = {"enabled": 1, "environment": "Sandbox", "api_base_url": f"https://{SANDBOX_HOST}"}
+		cases = {
+			"production, nobody": (production, [], True),
+			"production, a manager": (production, ["lp-manager@example.com"], False),
+			"sandbox, nobody": (sandbox, [], False),
+		}
+		for case, (values, managers, warned) in cases.items():
+			frappe.clear_messages()
+			with self.subTest(case), patch(f"{CONTROLLER}.get_users_with_role", return_value=managers):
+				self.settings.update(values)
+				self.settings.save()
+				messages = [m["message"] for m in frappe.get_message_log()]
+				self.assertEqual(any(MANAGER_ROLE in m for m in messages), warned)
+		frappe.clear_messages()
+
+	def test_an_enabled_production_gateway_needs_a_host_mtn_can_call_back(self):
+		production = {"enabled": 1, "environment": "Production", "api_base_url": "https://api.mtn.example"}
+		cases = {
+			"no host_name": (None, {"send_callback": 1}, False),
+			"https host_name": ("https://pay.example.com", {"send_callback": 1}, True),
+			"callback off": (None, {"send_callback": 0}, True),
+		}
+		for case, (host_name, values, saved) in cases.items():
+			with self.subTest(case), site_host(host_name):
+				self.settings.update({**production, **values})
+				if saved:
+					self.settings.save()
+				else:
+					self.assertRaises(frappe.ValidationError, self.settings.save)
+			self.settings.reload()
+
 
 class TestInitiate(IntegrationTestCase):
 	@classmethod
@@ -167,16 +240,18 @@ class TestInitiate(IntegrationTestCase):
 		self.settings = make_settings()
 		self.addCleanup(CacheTokenStore().delete, self.settings.token_cache_key)
 		# The Integration Request links to the session, so it has to exist.
-		self.session = frappe.get_doc(
-			{
-				"doctype": "Local Payment",
-				"payment_gateway": GATEWAY,
-				"reference_doctype": "User",
-				"reference_docname": "Administrator",
-				"amount": 5000,
-				"currency": "XAF",
-			}
-		).insert(ignore_permissions=True)
+		self.session = rc.save_state(
+			frappe.get_doc(
+				{
+					"doctype": "Local Payment",
+					"payment_gateway": GATEWAY,
+					"reference_doctype": "User",
+					"reference_docname": "Administrator",
+					"amount": 5000,
+					"currency": "XAF",
+				}
+			)
+		)
 
 	def initiate(self, *replies, session=None):
 		session = session or self.session
@@ -222,15 +297,25 @@ class TestInitiate(IntegrationTestCase):
 		self.assertIn("400, PAYER_NOT_FOUND", message)
 		self.assertNotIn(MSISDN, message)
 
-	def test_callback_url_carries_the_attempt_id_only_when_asked(self):
-		_started, request = self.initiate(token_response(), http_response(202))
-		headers = request.call_args_list[1].kwargs["headers"]
-		expected = get_url(f"/api/method/local_payments.api.mtn_momo_callback?attempt={ATTEMPT_ID}")
-		self.assertEqual(headers["X-Callback-Url"], expected)
-
-		self.settings.db_set("send_callback", 0)
-		_started, request = self.initiate(token_response(), http_response(202))
-		self.assertNotIn("X-Callback-Url", request.call_args_list[1].kwargs["headers"])
+	def test_callback_url_comes_from_host_name_only_and_carries_the_attempt_id(self):
+		# The payer's request can name any host.
+		previous = getattr(frappe.local, "request", None)
+		set_request(method="POST", base_url="http://attacker.example")
+		self.addCleanup(setattr, frappe.local, "request", previous)
+		cases = {
+			"host_name set": (
+				"https://pay.example.com",
+				1,
+				f"https://pay.example.com{CALLBACK_PATH}?attempt={ATTEMPT_ID}",
+			),
+			"no host_name": (None, 1, None),
+			"callback off": ("https://pay.example.com", 0, None),
+		}
+		for case, (host_name, send_callback, expected) in cases.items():
+			with self.subTest(case), site_host(host_name):
+				self.settings.db_set("send_callback", send_callback)
+				_started, request = self.initiate(token_response(), http_response(202))
+				self.assertEqual(request.call_args_list[1].kwargs["headers"].get("X-Callback-Url"), expected)
 
 	def test_the_log_holds_each_send_and_no_credential(self):
 		started, _request = self.initiate(

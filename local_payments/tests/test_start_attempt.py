@@ -165,9 +165,30 @@ class TestStartAttempt(CheckoutTestCase):
 		self.assertEqual(row.status, lc.INITIATED)
 		self.assertLessEqual(get_datetime(row.next_check_on), now_datetime())
 		self.assertEqual(state["attempt_status"], lc.INITIATED)
-		log = frappe.get_last_doc("Error Log", filters={"method": "Local Payment initiation failed"})
-		self.assertIn("could not be saved", log.error)
-		self.assertNotIn(MSISDN, log.error)
+		(log,) = self.logged("Local Payment initiation failed")
+		self.assertIn("could not be saved", log)
+		self.assertNotIn(NATIONAL, log)
+
+	def test_a_server_error_before_the_request_left_is_a_refusal_that_logs_no_number(self):
+		session = make_session()
+		with (
+			patch.object(api, "_open_attempt", side_effect=frappe.QueryTimeoutError("Lock wait timeout")),
+			# Frappe does not log a 4xx, so the request's variables stay out of the log.
+			self.assertRaises(frappe.ValidationError),
+		):
+			api.start_attempt(session.token, NATIONAL)
+
+		(log,) = self.logged("Local Payment start failed")
+		self.assertIn("Lock wait timeout", log)
+		self.assertNotIn(NATIONAL, log)
+
+	def test_a_server_error_after_the_request_left_lets_the_page_wait_for_the_outcome(self):
+		session = make_session()
+		with patch.object(api, "_record_start", side_effect=frappe.QueryTimeoutError("Lock wait timeout")):
+			state, _fake = self.start(session)
+
+		self.assertEqual(state["attempt_status"], lc.INITIATED)
+		self.assertTrue(self.logged("Local Payment start not recorded"))
 
 	def test_a_late_refusal_does_not_undo_what_a_status_check_recorded(self):
 		def status_check_meanwhile(attempt_id):

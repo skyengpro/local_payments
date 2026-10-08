@@ -1,13 +1,11 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
-from contextlib import contextmanager
 from decimal import Decimal
 from unittest import SkipTest
 from unittest.mock import patch
 
 import frappe
-from frappe.database import get_db
 from frappe.tests import IntegrationTestCase
 from frappe.utils import nowdate
 
@@ -15,7 +13,7 @@ from local_payments import api
 from local_payments import erpnext as ep
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
-from local_payments.tests.test_reconcile import FakeProvider, make_session
+from local_payments.tests.test_reconcile import FakeProvider, locked_elsewhere, make_session
 
 GATEWAY_NAME = "lp-erpnext"
 GATEWAY = f"MTN MoMo-{GATEWAY_NAME}"
@@ -27,27 +25,6 @@ CLOSED_PERIOD = "_Test LP Closed Period"
 # ERPNext names the period after it and the company's abbreviation.
 CLOSED_PERIOD_NAME = f"{CLOSED_PERIOD} - _TC"
 PAYMENT_REQUEST = "erpnext.accounts.doctype.payment_request.payment_request"
-
-
-@contextmanager
-def locked_elsewhere(session_name):
-	"""Hold a lock on a session row from a second connection, as a running authorization would."""
-	other = get_db(
-		socket=frappe.conf.db_socket,
-		host=frappe.conf.db_host,
-		port=frappe.conf.db_port,
-		user=frappe.conf.db_user,
-		password=frappe.conf.db_password,
-		cur_db_name=frappe.conf.db_name,
-	)
-	other.connect()
-	try:
-		other.begin()
-		other.sql("select name from `tabLocal Payment` where name = %s for update", session_name)
-		yield
-	finally:
-		other.rollback()
-		other.close()
 
 
 class TestHookPaths(IntegrationTestCase):
@@ -198,7 +175,8 @@ class TestSettlePaymentRequest(IntegrationTestCase):
 				"authorization": authorization,
 				"attempts": [{"attempt_id": frappe.generate_hash(length=36), "status": attempt}],
 			}
-		).insert(ignore_permissions=True)
+		)
+		rc.save_state(session)
 		frappe.db.commit()
 		return session
 

@@ -126,6 +126,19 @@ def start_attempt(token: str, msisdn: str) -> dict:
 
 	The number is checked before anything is written or sent. Returns what `get_status` returns.
 	"""
+	try:
+		return _start(token, msisdn)
+	except Exception as exc:
+		# Frappe logs a 5xx with every frame's variables, the payer's number included. It logs no 4xx.
+		if getattr(exc, "http_status_code", 500) < 500:
+			raise
+		_log_error("Local Payment start failed")
+		# The page shows the first message only.
+		frappe.clear_messages()
+		frappe.throw(_("Your payment could not be started. Please try again in a moment."))
+
+
+def _start(token: str, msisdn: str) -> dict:
 	session = _session_or_404(token)
 	# Checked again under the row lock. Here it spares a closed session the gateway lookup.
 	_ensure_open(session.status)
@@ -141,15 +154,14 @@ def start_attempt(token: str, msisdn: str) -> dict:
 		# The request may have left, so the outcome is unknown, as after a timeout: keep the attempt
 		# Initiated and let status checks start now.
 		frappe.db.rollback()
-		frappe.log_error(
-			title="Local Payment initiation failed",
-			# Without context: the frames' variables hold the payer's number.
-			message=frappe.get_traceback(),
-			reference_doctype="Local Payment",
-			reference_name=session.name,
-		)
+		_log_error("Local Payment initiation failed", session.name)
 		started = Initiated(lc.INITIATED)
-	_record_start(session.name, attempt_id, started)
+	try:
+		_record_start(session.name, attempt_id, started)
+	except Exception:
+		# The attempt is on record and may be on the phone already: status checks take it from here.
+		frappe.db.rollback()
+		_log_error("Local Payment start not recorded", session.name)
 
 	session = _session_or_404(token)
 	return payer_status(session, current_attempt(session.name))
@@ -178,7 +190,8 @@ def _open_attempt(session_name: str, msisdn: str, timeout_minutes: int) -> str:
 			"next_check_on": now + rc.INITIATION_WINDOW,
 		},
 	)
-	session.save(ignore_permissions=True)
+	# No Version: the attempt has no outcome yet, and the row holds the payer's number.
+	rc.save_state(session, history=False)
 	# If the provider call times out or the worker dies, the attempt must still be there to query. The
 	# commit also releases the row lock before the call.
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- attempt_id on record before the provider call
@@ -193,6 +206,7 @@ def _ensure_open(status: str) -> None:
 def _record_start(session_name: str, attempt_id: str, started: Initiated) -> None:
 	session = frappe.get_doc("Local Payment", session_name, for_update=True)
 	row = rc._attempt_row(session, attempt_id)
+	previous = row.status
 	row.integration_request = started.integration_request
 	# Once the initiation window is over, a status check may have moved the attempt on already.
 	if row.status == lc.INITIATED:
@@ -203,7 +217,7 @@ def _record_start(session_name: str, attempt_id: str, started: Initiated) -> Non
 		else:
 			# The provider has the request: status checks may start.
 			row.next_check_on = now_datetime()
-	session.save(ignore_permissions=True)
+	rc.save_state(session, history=row.status != previous)
 
 
 # The payer has no account, so this is guest by design: it only answers for a valid token.
@@ -261,15 +275,23 @@ def _check_with_provider(attempt_id: str, session_name: str) -> None:
 		rc.reconcile(attempt_id)
 	except Exception:
 		frappe.db.rollback()
-		# Frappe rolls a GET request back on its way out, so the log has to be inserted out of band.
-		frappe.log_error(
-			title="Local Payment status check failed",
-			reference_doctype="Local Payment",
-			reference_name=session_name,
-			defer_insert=True,
-		)
+		_log_error("Local Payment status check failed", session_name)
 	finally:
 		del frappe.local.message_log[messages:]
+
+
+def _log_error(title: str, session_name: str | None = None) -> None:
+	"""Log the current exception without its frames' variables, which can hold the payer's number.
+
+	Queued in Redis and inserted later: Frappe rolls back a failed request, and every GET request.
+	"""
+	frappe.log_error(
+		title=title,
+		message=frappe.get_traceback(),
+		reference_doctype="Local Payment",
+		reference_name=session_name,
+		defer_insert=True,
+	)
 
 
 def _session_or_404(token) -> frappe._dict:

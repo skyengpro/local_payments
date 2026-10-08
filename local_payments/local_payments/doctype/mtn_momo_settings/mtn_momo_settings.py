@@ -8,7 +8,8 @@ from urllib.parse import urlencode, urlsplit
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, get_url
+from frappe.utils import cint
+from frappe.utils.user import get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.gateway import Initiated, LocalPaymentGateway
@@ -20,6 +21,7 @@ from local_payments.providers.mtn_momo import (
 	MtnMomoClient,
 	MtnMomoConfig,
 )
+from local_payments.reconcile import MANAGER_ROLE
 
 SANDBOX_HOST = "sandbox.momodeveloper.mtn.com"
 CALLBACK_PATH = "/api/method/local_payments.api.mtn_momo_callback"
@@ -36,6 +38,27 @@ INITIATION_STATUSES = {
 }
 # Outcomes where MTN holds the request.
 TAKEN_IN = frozenset({InitiationOutcome.ACCEPTED, InitiationOutcome.DUPLICATE_REFERENCE})
+
+
+def callback_base(host_name: str | None, production: bool) -> str | None:
+	"""The address MTN can call back, from the site's host_name. None if there is none it can use.
+
+	MTN only calls https:// addresses in production. get_url() is not used: without host_name it falls
+	back to the site name over http, and it adds the dev server's port.
+	"""
+	host_name = (host_name or "").strip()
+	# No scheme means http, as in Frappe.
+	url = urlsplit(host_name if "://" in host_name else f"http://{host_name}")
+	try:
+		port = url.port
+	except ValueError:
+		return None
+	if url.scheme not in ("https", "http") or not url.hostname:
+		return None
+	if production and url.scheme != "https":
+		return None
+	# Host and port only: credentials in host_name would reach MTN and the Integration Request.
+	return f"{url.scheme}://{url.hostname}" + (f":{port}" if port else "")
 
 
 class CacheTokenStore:
@@ -97,9 +120,17 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			status, self.log_exchanges(attempt_id, session.name, exchanges, initiation.outcome in TAKEN_IN)
 		)
 
-	def callback_url(self, attempt_id: str) -> str:
+	def callback_url(self, attempt_id: str) -> str | None:
+		"""None when the site has no address MTN can call. Status checks then find the outcome on their own."""
+		# Never from the request's Host header, which the payer chooses.
+		base = self.site_callback_base()
+		if not base:
+			return None
 		# The attempt_id, never the session token: this URL is public and the token opens the checkout page.
-		return get_url(f"{CALLBACK_PATH}?{urlencode({'attempt': attempt_id})}")
+		return f"{base}{CALLBACK_PATH}?{urlencode({'attempt': attempt_id})}"
+
+	def site_callback_base(self) -> str | None:
+		return callback_base(frappe.conf.host_name or frappe.conf.hostname, self.environment == "Production")
 
 	def log_refusal(self, attempt_id: str, session_name: str, detail: str) -> None:
 		# The detail names the outcome and MTN's codes only, never the payer's number.
@@ -160,6 +191,8 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 		self.validate_api_base_url()
 		self.validate_msisdn_format()
 		self.set_pending_timeout()
+		self.validate_callback_host()
+		self.warn_if_no_alert_manager()
 
 	def validate_gateway_name_unchanged(self):
 		# Without this, Frappe would silently put the document name back into gateway_name.
@@ -194,3 +227,27 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("Pending Timeout (Minutes) cannot be negative."))
 		if timeout == 0:
 			self.pending_timeout_minutes = cint(self.meta.get_field("pending_timeout_minutes").default)
+
+	def validate_callback_host(self):
+		if (
+			cint(self.enabled)
+			and cint(self.send_callback)
+			and self.environment == "Production"
+			and not self.site_callback_base()
+		):
+			frappe.throw(
+				_(
+					"MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
+				)
+			)
+
+	def warn_if_no_alert_manager(self):
+		if not cint(self.enabled) or self.environment != "Production" or get_users_with_role(MANAGER_ROLE):
+			return
+		frappe.msgprint(
+			_(
+				"No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
+			).format(MANAGER_ROLE),
+			title=_("Role not assigned"),
+			indicator="orange",
+		)

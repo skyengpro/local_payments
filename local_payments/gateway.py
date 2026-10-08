@@ -17,6 +17,7 @@ from frappe import _
 from frappe.utils import call_hook_method, cint, flt, get_url
 from payments.utils import create_payment_gateway
 
+from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.msisdn import normalize_msisdn
 
@@ -144,5 +145,5 @@ class LocalPaymentGateway:
 			}
 		)
 		# The consumer may be a Guest or a user without access to Local Payment.
-		session.insert(ignore_permissions=True)
+		rc.save_state(session)
 		return session.token

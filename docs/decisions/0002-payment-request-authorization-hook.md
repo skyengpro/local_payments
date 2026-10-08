@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-09-11
-**Updated:** 2026-10-02 (user context, cancellation, guards)
+**Updated:** 2026-10-08 (user context, cancellation, guards, retry button)
 
 ## Context
 
@@ -40,16 +40,9 @@ undoes the whole cancellation.
 
 ## Decision
 
-`local_payments` declares in `hooks.py`:
-
-```python
-doc_events = {
-    "Payment Request": {
-        "on_payment_authorized": "local_payments.erpnext.on_payment_authorized",
-        "on_cancel": "local_payments.erpnext.void_open_sessions",
-    }
-}
-```
+`local_payments` registers two `doc_events` on `Payment Request` in
+`hooks.py`: `on_payment_authorized` and `on_cancel`, both handled in
+`local_payments/erpnext.py`.
 
 `on_payment_authorized(doc, method, status)`:
 
@@ -174,9 +167,9 @@ replaces the session, the form data and the caches.
 **Advantages of refusing:** the merchant books the payment before cancelling,
 and the message names the session to retry.
 
-**Drawbacks of refusing:** until the "Retry authorization" button exists on
-the `Local Payment` form, a merchant blocked by repeated failures waits for
-the scheduler's retry or uses the console.
+**Drawbacks of refusing:** the merchant must fix the cause and retry the
+authorization from the session ("Retry authorization" button) before
+cancelling.
 
 ## Trade-off analysis
 
@@ -224,5 +217,5 @@ than turning every payment from the page into a failure and a delayed retry.
        `Void`, new attempt refused.
 6. [x] Integration test: cancellation refused while a session is `Paid`
        and not `Done`.
-7. [ ] "Retry authorization" button on the `Local Payment` form, so a
+7. [x] "Retry authorization" button on the `Local Payment` form, so a
        merchant blocked by the cancellation guard does not need the console.

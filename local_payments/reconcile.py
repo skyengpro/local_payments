@@ -25,7 +25,7 @@ from typing import Protocol
 import frappe
 from frappe import _
 from frappe.utils import get_datetime, now_datetime
-from frappe.utils.user import get_users_with_role
+from frappe.utils.user import get_system_managers, get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.lifecycle import ProviderResult, Resolution
@@ -68,6 +68,16 @@ AUTHORIZATION_RETRY_BASE = timedelta(hours=1)
 AUTHORIZATION_RETRY_CAP = timedelta(hours=24)
 MAX_AUTHORIZATION_TRIES = 5
 
+# Authorization failures that can pass on their own, so the retries alone handle them. Any other failure
+# is alerted at once: retrying does not fix a configuration error or a bug.
+TRANSIENT_ERRORS = (
+	frappe.QueryDeadlockError,
+	frappe.QueryTimeoutError,
+	frappe.DocumentLockedError,
+	frappe.TimestampMismatchError,
+	frappe.InReadOnlyMode,
+)
+
 SAVEPOINT = "lp_authorize"
 
 
@@ -96,6 +106,24 @@ def authorization_retry_delay(authorization: str, tries: int) -> timedelta:
 	if authorization == AUTH_PENDING:
 		return PENDING_AUTHORIZATION_GRACE
 	return min(AUTHORIZATION_RETRY_BASE * 2 ** max(tries - 1, 0), AUTHORIZATION_RETRY_CAP)
+
+
+def can_retry_authorization(session, now=None) -> bool:
+	"""True when a person may run the consumer's callback again: it failed, or Pending looks stuck."""
+	if session.status != lc.PAID:
+		return False
+	if session.authorization == AUTH_FAILED:
+		return True
+	return (
+		session.authorization == AUTH_PENDING
+		and bool(session.paid_on)
+		and (now or now_datetime()) - get_datetime(session.paid_on) > PENDING_AUTHORIZATION_GRACE
+	)
+
+
+def needs_a_person(exc: Exception) -> bool:
+	"""True when an authorization failure will not go away by retrying."""
+	return not isinstance(exc, TRANSIENT_ERRORS)
 
 
 def _next_attempt_check(now, row) -> object:
@@ -152,6 +180,19 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 	return resolution
 
 
+def save_state(session, history: bool = True):
+	"""Insert or save a session as the payment flow. Any other save may not touch its state.
+
+	`history=False` leaves no Version, for saves that change no status. Returns the session.
+	"""
+	session.flags.local_payments_state = True
+	try:
+		# None keeps Frappe's default, which writes no Version under tests.
+		return session.save(ignore_permissions=True, ignore_version=None if history else True)
+	finally:
+		session.flags.local_payments_state = False
+
+
 def authorize(session_name: str) -> bool:
 	"""Run the consumer's `on_payment_authorized` for a Paid session. True if it is now Done.
 
@@ -175,7 +216,7 @@ def authorize(session_name: str) -> bool:
 	session.authorization_next_retry_on = None
 	if isinstance(redirect, str):
 		session.success_redirect = redirect
-	session.save(ignore_permissions=True)
+	save_state(session)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- effects and Done commit together (D4)
 	return True
 
@@ -200,7 +241,7 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 
 	row.last_checked_on = now
 	row.check_count = (row.check_count or 0) + 1
-	session.save(ignore_permissions=True)
+	save_state(session, history=False)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- release the lock before the provider call
 	return session.name, session.payment_gateway, frappe.parse_json(row.provider_data or "{}")
 
@@ -225,6 +266,7 @@ def _record(
 		past_deadline=bool(row.expires_on) and now >= get_datetime(row.expires_on),
 	)
 
+	previous = row.status
 	row.status = resolution.attempt_status
 	row.duplicate = int(resolution.duplicate)
 	row.amount_mismatch = int(resolution.amount_mismatch)
@@ -244,7 +286,7 @@ def _record(
 		session.authorization = AUTH_PENDING
 		session.authorization_next_retry_on = _next_authorization_retry(now, session)
 
-	session.save(ignore_permissions=True)
+	save_state(session, history=row.status != previous)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Paid must be durable before the consumer (D4)
 
 	alert = (
@@ -312,7 +354,7 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	session.authorization_error = str(exc)
 	session.authorization_tries = (session.authorization_tries or 0) + 1
 	session.authorization_next_retry_on = _next_authorization_retry(now_datetime(), session)
-	session.save(ignore_permissions=True)
+	save_state(session)
 	frappe.log_error(
 		title=f"Local Payment authorization failed: {session.name}",
 		message=traceback,
@@ -321,23 +363,40 @@ def _record_authorization_failure(session, exc: Exception) -> None:
 	)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- Failed must survive whatever the caller does next
 
+	if needs_a_person(exc) and not session.authorization_failure_alerted:
+		frappe.db.set_value(
+			"Local Payment", session.name, "authorization_failure_alerted", 1, update_modified=False
+		)
+		alert_managers(session.name, None, "authorization_failed")
 
-def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
-	"""Tell every Local Payments Manager. Must never break its caller.
 
-	`detail` is the attempt id, or the number of tries for `authorization_exhausted`. Alerts that must be
-	sent only once are guarded by the caller through a flag column, not by looking at past notifications.
+def alert_recipients() -> list[str]:
+	"""Active Local Payments Managers, else active System Managers, else Administrator."""
+	return get_users_with_role(MANAGER_ROLE) or get_system_managers(only_name=True) or ["Administrator"]
+
+
+def alert_managers(session_name: str, detail: str | int | None, reason: str) -> None:
+	"""Notify `alert_recipients()`. A failure to notify is logged, not raised.
+
+	`detail` is the attempt id, the number of tries for `authorization_exhausted`, or None.
+
+	Notifications are committed with whatever the caller left pending, so a caller can set its
+	"alerted" flag first and have it kept only if the alert went out. On error, the pending writes
+	are rolled back and an Error Log keeps the alert text.
 	"""
 	subjects = {
 		"duplicate": _("Duplicate payment on {0} (attempt {1}). Check whether a refund is due."),
 		"amount_mismatch": _("Amount or currency mismatch on {0} (attempt {1}). The session stays open."),
 		"unresolved_timeout": _("Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."),
+		"authorization_failed": _(
+			"Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
+		),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:
-		for user in get_users_with_role(MANAGER_ROLE):
+		for user in alert_recipients():
 			frappe.get_doc(
 				{
 					"doctype": "Notification Log",
@@ -348,6 +407,14 @@ def alert_managers(session_name: str, detail: str | int, reason: str) -> None:
 					"document_name": session_name,
 				}
 			).insert(ignore_permissions=True)
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- the alert and the caller's flag together
 	except Exception:
-		frappe.log_error(title=f"Local Payment alert failed: {session_name}")
+		traceback = frappe.get_traceback()
+		frappe.db.rollback()
+		frappe.log_error(
+			title=f"Local Payment alert failed: {session_name}",
+			message=f"{subject}\n\n{traceback}",
+			reference_doctype="Local Payment",
+			reference_name=session_name,
+		)
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- keep the Error Log

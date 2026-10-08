@@ -53,7 +53,7 @@ class TestScheduler(IntegrationTestCase):
 		# alert_managers() commits, so the class-level rollback can't undo what these tests created.
 		frappe.db.rollback()
 		frappe.db.delete("Notification Log", {"for_user": MANAGER})
-		frappe.db.delete("Error Log", {"method": ["like", "Local Payment scheduler failed%"]})
+		frappe.db.delete("Error Log", {"method": ["like", "Local Payment %"]})
 		frappe.db.delete("Local Payment Attempt", {"parenttype": "Local Payment"})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
 		frappe.db.commit()
@@ -254,23 +254,20 @@ class TestScheduler(IntegrationTestCase):
 		self.assertEqual(len(self.alerts(exhausted)), 1)
 		self.assertEqual(self.alerts(retrying), [])
 
-	def test_a_failing_alert_does_not_stop_the_other_alerts(self):
+	def test_a_failed_alert_does_not_stop_the_others_and_is_sent_on_the_next_run(self):
 		stale = make_session({"status": "Unresolved", "expires_on": ago(hours=80)})
 		exhausted = paid_session(rc.AUTH_FAILED, tries=rc.MAX_AUTHORIZATION_TRIES)
-		real = rc.alert_managers
-		# A failing alert rolls back, which would take the seeded rows with it. clean_up() removes them.
+		# A failed alert rolls back, which would take the seeded rows with it. clean_up() removes them.
 		frappe.db.commit()
 
-		def flaky(session_name, detail, reason):
-			if reason == "unresolved_timeout":
-				raise Exception("mail down")
-			real(session_name, detail, reason)
-
-		with patch("local_payments.reconcile.alert_managers", side_effect=flaky):
+		# The unresolved alert goes first and fails, the authorization alert goes out.
+		recipients = [Exception("mail down"), [MANAGER]]
+		with patch("local_payments.reconcile.alert_recipients", side_effect=recipients):
 			sch.send_daily_alerts()
+		self.assertEqual((len(self.alerts(stale)), len(self.alerts(exhausted))), (0, 1))
 
-		self.assertEqual(self.alerts(stale), [])
-		self.assertEqual(len(self.alerts(exhausted)), 1)
+		sch.send_daily_alerts()
+		self.assertEqual((len(self.alerts(stale)), len(self.alerts(exhausted))), (1, 1))
 
 	# wiring
 
