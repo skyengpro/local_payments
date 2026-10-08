@@ -27,7 +27,7 @@ class LocalPayment(Document):
 
 		amount: DF.Currency
 		attempts: DF.Table[LocalPaymentAttempt]
-		authorization: DF.Literal["", "Pending", "Done", "Failed"]
+		authorization: DF.Literal["Pending", "Done", "Failed"]
 		authorization_error: DF.SmallText | None
 		authorization_tries: DF.Int
 		currency: DF.Link
