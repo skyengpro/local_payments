@@ -736,8 +736,8 @@ msgid "The payment gateway {0} is disabled."
 msgstr ""
 
 #: local_payments/templates/pages/local_payment_checkout.html:24
-msgid "The payment request could not be sent. Check the number and try again."
-msgstr "La demande de paiement n'a pas pu être envoyée. Vérifiez le numéro et réessayez."
+msgid "The payment service is not responding at the moment. Please try again in a few minutes."
+msgstr "Le service de paiement ne répond pas pour le moment. Veuillez réessayer dans quelques minutes."
 
 #: local_payments/api.py:203
 msgid "This payment can no longer be made from this page."

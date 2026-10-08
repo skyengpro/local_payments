@@ -283,7 +283,7 @@ itself.
 erDiagram
     LOCAL_PAYMENT["Local Payment"] {
         Data name "LPAY-.YYYY.-.#####"
-        Data token "unique, 32 random characters, guest access"
+        Data token "unique, 32 random characters, guest access, hidden in the desk"
         Link payment_gateway "Payment Gateway, reqd"
         Link reference_doctype "DocType, reqd"
         DynamicLink reference_docname "reqd"
@@ -304,6 +304,7 @@ erDiagram
         SmallText authorization_error "read-only"
         Datetime authorization_next_retry_on "read-only, indexed"
         Check authorization_alerted "managers told the authorization gave up"
+        Check authorization_failure_alerted "managers told at the first failure that needs a person"
         SmallText success_redirect "URL returned by on_payment_authorized"
     }
     LOCAL_PAYMENT_ATTEMPT["Local Payment Attempt"] {
@@ -446,7 +447,7 @@ payment. The PayPal and Razorpay gateways also populate
 | `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Checks the number, creates an attempt and calls initiation. Returns the same state as`get_status`.               |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
-| `Local Payment` form: Check, Retry authorization, Cancel | button    | `Local Payments Manager` | Support actions.                                                                                                   |
+| `Local Payment` form: Retry authorization | button, POST | `Local Payments Manager`, System Manager | Runs the authorization of a `Paid` session again, when it is `Failed` or `Pending` for longer than 5 minutes. Answers at once if one is already running. The try counts like any other. |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
@@ -458,7 +459,7 @@ documentation is received.
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Every 2 minutes (`cron`) | `Initiated` and `Pending` attempts whose `next_check_on` is due. `reconcile()` on each.                                                                                                |
 | Every hour                 | `Unresolved` attempts whose `next_check_on` is due, until 72 hours after their deadline. `Pending` or `Failed` authorizations whose `authorization_next_retry_on` is due.            |
-| Every day                  | Alerts to`Local Payments Manager`, sent once: attempts `Unresolved` for more than 72 hours on a session not `Paid`, authorizations still `Failed` after the maximum number of tries. |
+| Every day                  | Alerts, sent once: attempts `Unresolved` for more than 72 hours on a session not `Paid`, authorizations still `Failed` after the maximum number of tries. |
 
 The jobs decide nothing. `reconcile()` writes the next due date each time it records an outcome:
 decreasing frequency for an `Unresolved` attempt, a doubling backoff for a failed authorization, and no
@@ -472,27 +473,41 @@ The two daily alerts are recorded by a flag on the row, so a repeat run selects 
 committed with the notifications, and only if at least one person was notified; otherwise the next day's
 run tries again.
 
-Alerts go to the active holders of `Local Payments Manager`, or to the active System Managers when nobody
-holds the role. With neither, an Error Log ("Local Payment alert with no recipient") keeps the alert text.
-They are desk notifications of type `Alert`, which Frappe never emails. The alerts that `reconcile()`
-raises itself (duplicate, amount mismatch, payment on a `Void` session) have no flag and are sent once:
-with no recipient, only the Error Log keeps them.
+Alerts go to the active holders of `Local Payments Manager`, else to the active System Managers, else to
+Administrator. They are desk notifications of type `Alert`, which Frappe never emails. If sending fails, an
+Error Log keeps the alert text.
+
+`reconcile()` raises some alerts itself, once and with no retry: duplicate, amount mismatch, payment on a
+`Void` session, and the first authorization failure that needs a person. That last one fires on any error
+except a lock, deadlock, concurrent edit or read-only database, which the backoff retries alone. It is sent
+once per session; the retries and the daily "failed N times" alert still follow.
 
 ## Security and permissions
 
 - Merchant credentials are stored in `Password` fields, encrypted with the
   site's `encryption_key`. The Settings doctypes are restricted to System
   Manager.
-- `Local Payment` is readable by `Local Payments Manager`, a role created
-  by the application, and by System Manager. The document is only ever
-  created by code and can only be deleted by Administrator. Its status
-  fields are read-only and are written only by `reconcile()`, and by the
-  Payment Request cancellation hook, which moves `Open` sessions to `Void`.
+- `Local Payments Manager`, a role created by the application, and System
+  Manager can read, report on and export `Local Payment`, and retry an
+  authorization. Neither can create, edit or delete a session. The role
+  gives no access to the Settings, `Integration Request` or `Error Log`.
+- Sessions are created and changed only by the payment flow: the gateway,
+  the guest endpoints, `reconcile()` and the Payment Request cancellation
+  hook. What the consumer asked for (gateway, reference, amount, currency,
+  texts, `request_data`) is fixed at creation. Any other change is refused,
+  Administrator included, through the form or the REST API. Changes of
+  outcome are kept in the document's history; the start of an attempt is
+  not, so the payer's number stays out of it.
 - Guest access to a session only ever goes through its `token`. The
-  sequential name is never exposed. The page shows only the title, the
-  amount, the currency, and the provider.
+  sequential name is never exposed. The token is hidden in the desk, in
+  reports and in exports. The page shows only the title, the amount, the
+  currency, and the provider.
 - The payer's phone number is personal data, visible only to the roles
-  above.
+  above. Errors on the guest endpoints are logged without the traceback's
+  variables, which hold the number. An unexpected server error reaches the
+  payer as a generic refusal.
+- The MTN callback address is built from the site's `host_name` only,
+  never from the request, so a payer cannot redirect it.
 - `provider_data` contains no secret. A token tied to an attempt is stored
   there hashed.
 - Provider access tokens are cached per settings document until their
@@ -522,22 +537,22 @@ with no recipient, only the Error Log keeps them.
   running on one of them.
 - A Payment Request that is not submitted is never marked paid: its
   authorization fails and is retried.
+- A change to a session outside the payment flow, by anyone.
+- An enabled Production MTN gateway with callbacks on, when the site's
+  `host_name` is not an `https://` address.
 
 ## Installation and configuration
 
-1. `bench get-app payments --branch version-16`, then
-   `git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321`, then `bench get-app local_payments`.
-2. `bench --site <site> install-app payments local_payments`.
-   Then assign `Local Payments Manager` to at least one person: payment alerts go to that role. Saving
-   an enabled `MTN MoMo Settings` in Production shows a warning while nobody holds it.
-3. Create one `MTN MoMo Settings` document per MTN merchant contract, then,
-   once Orange Money is implemented, one `Orange Money Settings` document
-   per Orange merchant contract. Each with its own credentials; the
-   corresponding gateway appears in `Payment Gateway`.
-4. On an ERPNext site, check the `Payment Gateway Account` created for the
-   default company, and create one for each other company involved.
-5. For MTN MoMo in production, register the site's callback host in the
-   MTN merchant portal.
+Steps and prerequisites are in the [README](../README.md). What the design
+depends on:
+
+- `host_name` in the site config holds the site's public `https://`
+  address. MTN calls it back, and without it no callback is sent: the
+  outcome is then found by polling only.
+- `developer_mode` is off. In developer mode Frappe logs refused requests
+  with their variables, the payer's number among them.
+- At least one person holds `Local Payments Manager`. Saving an enabled
+  Production gateway warns while nobody does.
 
 Nothing else varies from one site to another.
 
@@ -567,6 +582,9 @@ Nothing else varies from one site to another.
   cache invalidations and desk refresh events of the undone Payment Entry
   still run when `Failed` is committed. No job is queued that way; the worst
   case is a desk screen refreshing for a document that does not exist.
+- **Without `host_name`, payment links follow the request's host.** The
+  checkout URL and the exit URL come from Frappe's `get_url()`, which uses
+  the `Host` header when `host_name` is not set.
 - **The Orange Money Local/USSD technical contract is not yet known.**
   Endpoints, the status schema, and the format of the transmitted
   identifier depend on the documentation delivered when the merchant

@@ -49,7 +49,7 @@ System Manager can read or edit it.
 | `pending_timeout_minutes` | Int | | Local delay before `Unresolved`. Defaults to 15, also when left empty or set to 0. Cannot be negative. |
 | `payer_message` | Data | | Message shown to the payer. At most 160 characters. |
 | `payee_note` | Data | | Merchant-side note. At most 160 characters. |
-| `send_callback` | Check | | Sends `X-Callback-Url`. Checked by default. |
+| `send_callback` | Check | | Sends `X-Callback-Url`, built from the site's `host_name`. Checked by default. In Production, an enabled gateway with this box checked needs an `https://` `host_name`. |
 
 Saving the document creates the `MTN MoMo-<gateway_name>` gateway if it does
 not exist yet, and announces it with `payment_gateway_enabled` when `enabled`
@@ -159,7 +159,11 @@ sequenceDiagram
 - **Callback.** MTN sends it once and does not resend it if there is no
   response. It carries no secret and its body is never read. `X-Callback-Url`
   is sent only when `send_callback` is checked, and carries the `attempt_id`,
-  never the session token, which opens the checkout page. For an attempt
+  never the session token, which opens the checkout page. Its address comes
+  from `host_name` in the site config, never from the payer's request; a
+  port, if any, goes inside `host_name`. Without a usable `host_name` (or
+  without `https://` in Production) the request goes out with no callback
+  and the outcome is found by polling. For an attempt
   still `Initiated`, `Pending` or `Unresolved`, the callback queues
   `reconcile()` in a background job, one job at a time per attempt. Any other
   call gets the same empty answer, with no outgoing call. The `attempt_id` is
