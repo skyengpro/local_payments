@@ -25,6 +25,8 @@ def get_context(context):
 		raise frappe.PageDoesNotExistError
 
 	attempt = api.current_attempt(session.name)
+	# Only an Open session waits: on a Void one, polling would reload the page forever.
+	waiting = session.status == lc.OPEN and bool(attempt and attempt.status in rc.CHECKABLE_STATES)
 	context.update(
 		token=frappe.form_dict.token,
 		session_title=session.title,
@@ -33,8 +35,9 @@ def get_context(context):
 		provider=api.provider_name(session.payment_gateway),
 		status=session.status,
 		redirect_url=api.exit_url(session) if session.status == lc.PAID else None,
-		# Only an Open session waits: on a Void one, polling would reload the page forever.
-		waiting=session.status == lc.OPEN and bool(attempt and attempt.status in rc.CHECKABLE_STATES),
+		waiting=waiting,
+		# The form stays hidden while waiting, and the page reloads when that ends.
+		operators=api.payer_operators(session) if session.status == lc.OPEN and not waiting else [],
 	)
 
 

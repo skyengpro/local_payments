@@ -1,0 +1,207 @@
+{
+	"_source": "Rebuilt from docs/openAPI/nokash-payin-spec.json, not captured. status_pending, status_canceled and status_timeout are derived from its status examples and status_reasons_observed. Replace them with captures, keys and numbers removed.",
+	"signature_vector": {
+		"i_space_key": "test_integrator_space_key",
+		"app_space_key": "test_app_space_key",
+		"order_id": "ord_20260512_001",
+		"amount": 1000,
+		"user_phone": "690000000",
+		"hmac_signature": "2c464aaaf9ec763278ad9ea7eb6f1844499b9eaf4e5b3a41bbb9f9c113168ba3"
+	},
+	"payin_accepted": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Payin request initiated",
+			"data": {
+				"id": "nk_tx_z7iky89lkg9iso9hk86u",
+				"status": "PENDING",
+				"amount": 1000,
+				"orderId": "ord_20260512_001",
+				"phone": "690000000"
+			}
+		}
+	},
+	"payin_accepted_already_failed": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Payin request initiated",
+			"data": {
+				"id": "nk_tx_z7iky89lkg9iso9hk86u",
+				"status": "FAILED",
+				"amount": 1000,
+				"orderId": "ord_20260512_001",
+				"phone": "690000000"
+			}
+		}
+	},
+	"payin_missing_field": {
+		"status": 400,
+		"body": {
+			"status": "REQUEST_BAD_INFOS",
+			"message": "A required field is missing",
+			"data": null,
+			"missing": ["user_data.user_phone"]
+		}
+	},
+	"payin_below_minimum": {
+		"status": 400,
+		"body": {
+			"status": "REQUEST_BAD_INFOS",
+			"message": "Minimum amount for CM is 200",
+			"data": null
+		}
+	},
+	"payin_unsupported_operator": {
+		"status": 400,
+		"body": {
+			"status": "REQUEST_BAD_INFOS",
+			"message": "Unsupported country or payment_method",
+			"data": null,
+			"supported_options": [
+				{
+					"payment_type": "CM_MOBILEMONEY",
+					"payment_method": "MTN_MOMO",
+					"label": "MTN Mobile Money",
+					"currency": "XAF",
+					"min_amount": 200
+				},
+				{
+					"payment_type": "CM_MOBILEMONEY",
+					"payment_method": "ORANGE_MONEY",
+					"label": "Orange Money",
+					"currency": "XAF",
+					"min_amount": 200
+				}
+			]
+		}
+	},
+	"status_pending": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "PENDING",
+				"statusReason": null,
+				"phone": "690000000",
+				"user_name": "Sandbox User",
+				"user_email": "sandbox@example.com"
+			}
+		}
+	},
+	"status_success": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "SUCCESS",
+				"statusReason": null,
+				"phone": "690000000",
+				"user_name": "Sandbox User",
+				"user_email": "sandbox@example.com"
+			}
+		}
+	},
+	"status_failed": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_8kcb1soleu8y8eaazsby",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "FAILED",
+				"statusReason": "Insufficient customer balance",
+				"phone": "690000000",
+				"user_name": "Sandbox User",
+				"user_email": "sandbox@example.com"
+			}
+		}
+	},
+	"status_canceled": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_8kcb1soleu8y8eaazsby",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "CANCELED",
+				"statusReason": "Canceled by the user",
+				"phone": "690000000",
+				"user_name": "Sandbox User",
+				"user_email": "sandbox@example.com"
+			}
+		}
+	},
+	"status_timeout": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_8kcb1soleu8y8eaazsby",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "TIMEOUT",
+				"statusReason": "No response from the operator",
+				"phone": "690000000",
+				"user_name": "Sandbox User",
+				"user_email": "sandbox@example.com"
+			}
+		}
+	},
+	"status_unknown_value": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"message": "Transaction status loaded",
+			"data": {
+				"id": "nk_tx_8kcb1soleu8y8eaazsby",
+				"orderId": "ord_20260512_001",
+				"amount": 1000,
+				"status": "REVERSED",
+				"statusReason": null
+			}
+		}
+	},
+	"status_unknown_transaction": {
+		"status": 404,
+		"body": {
+			"status": "REQUEST_BAD_INFOS",
+			"message": "Unknown transaction_id",
+			"data": null
+		}
+	},
+	"unknown_answer": {
+		"status": 200,
+		"body": {
+			"status": "SOMETHING_ELSE",
+			"message": "Unexpected error",
+			"data": null
+		}
+	},
+	"server_error": {
+		"status": 503,
+		"body": {
+			"status": "REQUEST_BAD_INFOS",
+			"message": "Service unavailable",
+			"data": null
+		}
+	},
+	"not_json": {
+		"status": 200,
+		"body": null
+	}
+}

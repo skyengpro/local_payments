@@ -432,3 +432,21 @@ Ils ne bloquent pas le développement sur réponses enregistrées. Ils iront dan
 - Remboursements et décaissements.
 - Saisie manuelle d'un id par le support.
 - Index sur `provider_transaction_id` de la tentative : inutile au volume annoncé.
+
+## 6. Écarts entre ce plan et ce qui est livré
+
+Ajouté après l'implémentation. Les reviews ont changé ces points :
+
+| Prévu | Livré | Pourquoi |
+| ----- | ----- | -------- |
+| `next_check_on` vidé sur une tentative perdue, filtre `is set` dans le scheduler | `alerted` est le seul état. `scheduler.py` ne change pas | Le premier mécanisme doublonnait le second. Sans id, aucun appel réseau ne part de toute façon |
+| `alerted` écrit dans `_record` | Écrit juste avant l'alerte, et perdu si elle échoue : le contrôle suivant la renvoie | Le flag ne doit rester que si l'alerte est partie |
+| Pas de commit dans `_start` | Commit juste après `_record_start`, et l'id dans l'Error Log si cet enregistrement échoue | L'id est la seule clé de statut, il ne doit pas dépendre de la fin de la requête |
+| `log_exchanges` déplacé sans changement | Il tolère un échec d'écriture, derrière un savepoint | Un log en échec ne doit pas coûter le résultat de l'appel. Vaut aussi pour MTN |
+| Opérateurs lus à chaque ouverture de page | Lus seulement quand le formulaire est utile | Évite d'ouvrir le Settings pendant l'attente |
+| Le client refuse un opérateur inconnu | Contrôle dans `attempt_data` seulement | Seule source de `provider_data`, le contrôle du client était inatteignable |
+| `_log_error` privé à `api.py` | `gateway.log_error`, partagé | Une seule copie de la règle « pas de variables de frames » |
+
+`security-review` n'a pas pu tourner (`origin/HEAD` absent, rien de commité) : la revue sécurité a été
+faite à la main sur le diff. `test_mtn_momo_settings.py` a demandé deux modifications, pas une : la
+cible du patch et l'appel à `initiate`.

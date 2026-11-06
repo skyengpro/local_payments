@@ -75,6 +75,8 @@ class ProviderResult:
 	transaction_id: str | None = None
 	# The provider's own words, e.g. "FAILED: NOT_ENOUGH_FUNDS", kept for support.
 	provider_status: str | None = None
+	# The attempt has nothing to query the provider with, so nothing was asked. Reported as Pending.
+	no_reference: bool = False
 
 	def __post_init__(self):
 		if self.status not in PROVIDER_STATUSES:

@@ -97,6 +97,10 @@ def succeeded(amount="5000", currency="XAF"):
 	return ProviderResult("Succeeded", Decimal(amount), currency, "TX-1")
 
 
+def nothing_to_query():
+	return ProviderResult("Pending", provider_status="No transaction id", no_reference=True)
+
+
 def make_session(*attempts, status="Open", **extra):
 	rows = [
 		{
@@ -402,6 +406,51 @@ class TestReconcile(IntegrationTestCase):
 
 		self.assertIsNone(self.reconcile(session, SlowProvider(succeeded())))
 		self.assertEqual(reload(session).status, "Open")
+
+	def test_an_attempt_with_nothing_to_query_stays_open_until_its_deadline(self):
+		session = make_session({"status": "Initiated"})
+
+		self.reconcile(session, FakeProvider(nothing_to_query()))
+
+		row = reload(session).attempts[0]
+		self.assertEqual(row.status, "Pending")
+		self.assertTrue(row.next_check_on)
+		self.assertEqual(alerts_for(session), [])
+
+	def test_at_its_deadline_an_attempt_with_nothing_to_query_alerts_once(self):
+		past = {"status": "Pending", "expires_on": add_to_date(now_datetime(), minutes=-1)}
+		for status in ("Open", "Paid"):
+			with self.subTest(session=status):
+				session = make_session(past, status=status)
+
+				self.reconcile(session, FakeProvider(nothing_to_query()))
+
+				row = reload(session).attempts[0]
+				self.assertEqual((row.status, row.alerted), ("Unresolved", 1))
+				self.assertEqual(len(alerts_for(session)), 1)
+
+				# The payer's page and the scheduler keep coming back. Nobody is told twice.
+				frappe.db.set_value("Local Payment Attempt", row.name, "last_checked_on", None)
+				frappe.db.commit()
+				self.reconcile(session, FakeProvider(nothing_to_query()))
+
+				self.assertEqual(len(alerts_for(session)), 1)
+
+	def test_an_alert_that_failed_to_go_out_is_sent_by_the_next_check(self):
+		session = make_session({"status": "Pending", "expires_on": add_to_date(now_datetime(), minutes=-1)})
+
+		with patch("local_payments.reconcile.get_users_with_role", side_effect=Exception("mail down")):
+			self.reconcile(session, FakeProvider(nothing_to_query()))
+
+		row = reload(session).attempts[0]
+		self.assertEqual((row.status, row.alerted), ("Unresolved", 0))
+
+		frappe.db.set_value("Local Payment Attempt", row.name, "last_checked_on", None)
+		frappe.db.commit()
+		self.reconcile(session, FakeProvider(nothing_to_query()))
+
+		self.assertEqual(reload(session).attempts[0].alerted, 1)
+		self.assertEqual(len(alerts_for(session)), 1)
 
 
 class TestSchedulingPolicy(IntegrationTestCase):

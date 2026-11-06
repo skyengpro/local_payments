@@ -5,7 +5,7 @@ title = "local_payments gitleaks config"
 [extend]
 useDefault = true
 
-# MTN MoMo Settings / Orange Money Settings hold these as Password fields
+# MTN MoMo, Orange Money and Nokash Settings hold these as Password fields
 # (encrypted at rest by the site's encryption_key — see ARCHITECTURE.md
 # "Sécurité et permissions"). Catch them if they ever leak into code,
 # fixtures, .env files or notebooks instead.
@@ -33,6 +33,12 @@ id = "orange-money-merchant-key"
 description = "Orange Money merchant_key"
 regex = '''(?i)merchant_key["'\s:=]+[A-Za-z0-9_\-]{16,}'''
 tags = ["orange", "api-key"]
+
+[[rules]]
+id = "nokash-space-key"
+description = "Nokash i_space_key or app_space_key"
+regex = '''(?i)(i|app)_space_key["'\s:=]+[A-Za-z0-9_\-]{16,}'''
+tags = ["nokash", "api-key"]
 
 # Sandbox/test values and documentation are expected to contain
 # provider-shaped strings that are not real secrets (e.g. this repo's own

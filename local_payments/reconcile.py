@@ -173,6 +173,11 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 		return None
 	resolution, alert = recorded
 
+	if alert == "no_reference":
+		# Kept only if the alert goes out. Otherwise the next check sends it.
+		frappe.db.set_value(
+			"Local Payment Attempt", {"attempt_id": attempt_id}, "alerted", 1, update_modified=False
+		)
 	if alert:
 		alert_managers(session_name, attempt_id, alert)
 	if resolution.session_paid:
@@ -296,6 +301,8 @@ def _record(
 		if resolution.amount_mismatch
 		else "void_paid"
 		if resolution.void_paid
+		else "no_reference"
+		if result.no_reference and row.status == lc.UNRESOLVED and not row.alerted
 		else None
 	)
 	return resolution, alert
@@ -393,6 +400,9 @@ def alert_managers(session_name: str, detail: str | int | None, reason: str) -> 
 		),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
+		"no_reference": _(
+			"Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
+		),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:

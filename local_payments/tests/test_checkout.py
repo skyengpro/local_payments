@@ -14,6 +14,9 @@ from frappe.website.serve import get_response, get_response_content
 from local_payments import api
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
+from local_payments.local_payments.doctype.local_payments_test_settings.local_payments_test_settings import (
+	LocalPaymentsTestSettings,
+)
 
 SETTINGS = "Local Payments Test Settings"
 GATEWAY_NAME = "lp-checkout"
@@ -143,6 +146,19 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("XAF", content)
 		self.assertIn(PROVIDER, content)
 		self.assertIn(FORM, content)
+
+	def test_the_operator_choice_shows_only_when_the_gateway_offers_one_on_an_open_session(self):
+		choice = 'name="operator"'
+		self.assertNotIn(choice, self.render(make_session().token))
+
+		operators = [{"value": "ONE", "label": "Operator One"}, {"value": "TWO", "label": "Operator Two"}]
+		with patch.object(LocalPaymentsTestSettings, "payer_operators", return_value=operators):
+			content = self.render(make_session().token)
+			paid = self.render(make_session({"status": "Succeeded"}, status="Paid").token)
+
+		self.assertIn(choice, content)
+		self.assertIn("Operator Two", content)
+		self.assertNotIn(choice, paid)
 
 	def test_page_never_shows_the_session_name(self):
 		session = make_session()

@@ -40,7 +40,7 @@ class FakeInitiate:
 		self.during_call = during_call
 		self.calls = []
 
-	def __call__(self, attempt_id, session, msisdn):
+	def __call__(self, attempt_id, session, msisdn, provider_data):
 		on_record = frappe.db.get_value("Local Payment Attempt", {"attempt_id": attempt_id}, "status")
 		self.calls.append((attempt_id, session.name, msisdn, on_record))
 		if self.during_call:
@@ -58,10 +58,10 @@ def attempts(session):
 
 
 class TestStartAttempt(CheckoutTestCase):
-	def start(self, session, msisdn=NATIONAL, fake=None):
+	def start(self, session, msisdn=NATIONAL, fake=None, operator=None):
 		fake = fake or FakeInitiate()
 		with patch.object(LocalPaymentsTestSettings, "initiate", fake):
-			return api.start_attempt(session.token, msisdn), fake
+			return api.start_attempt(session.token, msisdn, operator), fake
 
 	def test_unknown_or_malformed_token_is_refused_without_writing(self):
 		fake = FakeInitiate()
@@ -140,6 +140,66 @@ class TestStartAttempt(CheckoutTestCase):
 		self.assertLessEqual(get_datetime(row.next_check_on), now_datetime())
 		self.assertEqual(fake.calls, [(row.attempt_id, session.name, MSISDN, lc.INITIATED)])
 		self.assertEqual(state, {"status": lc.OPEN, "attempt_status": lc.INITIATED, "redirect_url": None})
+
+	def test_a_refused_operator_writes_and_sends_nothing(self):
+		session = make_session()
+		fake = FakeInitiate()
+		with (
+			patch.object(LocalPaymentsTestSettings, "attempt_data", side_effect=frappe.ValidationError),
+			self.assertRaises(frappe.ValidationError),
+		):
+			self.start(session, fake=fake, operator="AIRTEL")
+		self.assertEqual(attempts(session), [])
+		self.assertEqual(fake.calls, [])
+
+	def test_provider_data_is_on_record_before_the_provider_call(self):
+		on_record = []
+
+		def read(attempt_id):
+			on_record.append(
+				frappe.db.get_value("Local Payment Attempt", {"attempt_id": attempt_id}, "provider_data")
+			)
+
+		session = make_session()
+		with patch.object(
+			LocalPaymentsTestSettings, "attempt_data", return_value={"operator": "ONE"}
+		) as data:
+			self.start(session, fake=FakeInitiate(during_call=read), operator="ONE")
+
+		data.assert_called_once_with("ONE")
+		self.assertEqual(json.loads(on_record[0]), {"operator": "ONE"})
+
+	def test_the_provider_id_is_kept_even_if_a_status_check_got_there_first(self):
+		def status_check_meanwhile(attempt_id):
+			frappe.db.set_value("Local Payment Attempt", {"attempt_id": attempt_id}, "status", lc.PENDING)
+
+		session = make_session()
+		accepted = Initiated(lc.INITIATED, None, "nk_tx_1")
+		self.start(session, fake=FakeInitiate(accepted, during_call=status_check_meanwhile))
+
+		(row,) = attempts(session)
+		self.assertEqual((row.status, row.provider_transaction_id), (lc.PENDING, "nk_tx_1"))
+
+	def test_the_provider_id_survives_a_failure_after_it_was_recorded(self):
+		session = make_session()
+		accepted = FakeInitiate(Initiated(lc.INITIATED, None, "nk_tx_1"))
+		with (
+			patch.object(api, "payer_status", side_effect=RuntimeError("late failure")),
+			self.assertRaises(frappe.ValidationError),
+		):
+			self.start(session, fake=accepted)
+		frappe.db.rollback()
+
+		(row,) = attempts(session)
+		self.assertEqual(row.provider_transaction_id, "nk_tx_1")
+
+	def test_an_id_that_could_not_be_recorded_stays_in_the_error_log(self):
+		session = make_session()
+		accepted = FakeInitiate(Initiated(lc.INITIATED, None, "nk_tx_1"))
+		with patch.object(api, "_record_start", side_effect=RuntimeError("lock wait")):
+			self.start(session, fake=accepted)
+
+		self.assertIn("nk_tx_1", self.logged("Local Payment start not recorded")[0])
 
 	def test_a_refused_initiation_ends_in_error_and_the_payer_can_try_again(self):
 		session = make_session()
