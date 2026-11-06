@@ -1,0 +1,271 @@
+{
+  "title": "Nokash Payin API - specification for local_payments",
+  "source": {
+    "url": "https://nokash.co/sandbox",
+    "nature": "Simulated API published by Nokash on its website. Behaviour read from the sandbox explorer, its predefined flow, its webhook simulator and its field help.",
+    "read_on": "2026-11-06",
+    "older_reference": "NOKASH API_PAYIN Documentation v4, July 2024 (no HMAC signature, minimum 1 XAF). Superseded here by the sandbox."
+  },
+  "base_url": "https://api.nokash.app",
+  "country": "CM",
+  "currency": "XAF",
+
+  "credentials": {
+    "i_space_key": "Integrator key. Sent in the payin body and used as the HMAC key. Server-side only.",
+    "app_space_key": "App key. Sent in the payin body and included in the signed string. Server-side only."
+  },
+
+  "signature": {
+    "applies_to": ["payin"],
+    "header": "hmac-signature",
+    "algorithm": "HMAC-SHA256, hexadecimal lowercase digest",
+    "key": "i_space_key",
+    "signed_string": "{order_id}:{amount}:{user_phone}:{app_space_key}",
+    "notes": [
+      "amount is written as in the JSON body. For XAF it is an integer: 1000, never 1000.0.",
+      "user_phone is the value sent in user_data.user_phone."
+    ],
+    "test_vector": {
+      "origin": "Computed by us with the formula above. Not an official Nokash vector; replace it with one from Nokash when available.",
+      "i_space_key": "test_integrator_space_key",
+      "app_space_key": "test_app_space_key",
+      "order_id": "ord_20260512_001",
+      "amount": 1000,
+      "user_phone": "690000000",
+      "signed_string": "ord_20260512_001:1000:690000000:test_app_space_key",
+      "hmac_signature": "2c464aaaf9ec763278ad9ea7eb6f1844499b9eaf4e5b3a41bbb9f9c113168ba3"
+    }
+  },
+
+  "envelope": {
+    "description": "Every response has the same envelope. Only REQUEST_OK carries data.",
+    "fields": {
+      "status": "Request status: REQUEST_OK, REQUEST_BAD_INFOS, or any other value for an unknown error",
+      "message": "Human-readable message from Nokash",
+      "data": "Object or array when status is REQUEST_OK, null otherwise"
+    },
+    "response_headers": {
+      "Content-Type": "application/json",
+      "X-Request-Id": "Nokash request identifier, e.g. req_17hbuuspy3ivy9g9f7fl",
+      "X-Sandbox": "\"true\" in the sandbox"
+    }
+  },
+
+  "transaction_statuses": {
+    "PENDING": "Waiting for the payer's approval",
+    "SUCCESS": "Paid",
+    "FAILED": "Declined by the operator or insufficient balance",
+    "CANCELED": "Cancelled by the payer",
+    "TIMEOUT": "No response from the operator in time"
+  },
+
+  "status_reasons_observed": {
+    "SUCCESS": null,
+    "FAILED (insufficient balance)": "Insufficient customer balance",
+    "FAILED (declined)": "The payment was declined by the operator",
+    "CANCELED": "Canceled by the user",
+    "TIMEOUT": "No response from the operator"
+  },
+
+  "endpoints_used": [
+    {
+      "name": "payin",
+      "purpose": "Send a payment request to the payer's phone",
+      "method": "POST",
+      "path": "/lapas-on-trans/trans/api-payin-request/407",
+      "headers": {
+        "Content-Type": "application/json",
+        "hmac-signature": "see signature"
+      },
+      "body": {
+        "i_space_key": { "type": "string", "required": true },
+        "app_space_key": { "type": "string", "required": true },
+        "payment_type": { "type": "string", "required": true, "values": ["CM_MOBILEMONEY"] },
+        "country": { "type": "string", "required": true, "values": ["CM"] },
+        "payment_method": { "type": "string", "required": true, "values": ["MTN_MOMO", "ORANGE_MONEY"] },
+        "order_id": { "type": "string", "required": true, "description": "Unique reference in our system. We send the attempt_id." },
+        "amount": { "type": "number", "required": true, "minimum": 200, "description": "Integer amount in XAF" },
+        "callback_url": { "type": "string", "required": false, "description": "Called on each final status change" },
+        "user_data": {
+          "type": "object",
+          "required": true,
+          "fields": {
+            "user_phone": { "type": "string", "required": true, "description": "Payer's Mobile Money number, national format, e.g. 690000000" },
+            "user_name": { "type": "string", "required": false },
+            "user_email": { "type": "string", "required": false }
+          }
+        }
+      },
+      "example_request": {
+        "i_space_key": "YOUR_INTEGRATOR_SPACE_KEY",
+        "app_space_key": "YOUR_APP_SPACE_KEY",
+        "payment_type": "CM_MOBILEMONEY",
+        "country": "CM",
+        "payment_method": "MTN_MOMO",
+        "order_id": "ord_20260512_001",
+        "amount": 1000,
+        "callback_url": "https://your-app.com/api/webhooks/nokash",
+        "user_data": {
+          "user_phone": "690000000",
+          "user_name": "Sandbox User",
+          "user_email": "sandbox@example.com"
+        }
+      },
+      "responses": [
+        {
+          "case": "Accepted",
+          "http_status": 200,
+          "body": {
+            "status": "REQUEST_OK",
+            "message": "Payin request initiated",
+            "data": {
+              "id": "nk_tx_z7iky89lkg9iso9hk86u",
+              "status": "PENDING",
+              "amount": 1000,
+              "orderId": "ord_20260512_001",
+              "phone": "690000000"
+            }
+          },
+          "notes": "data.status can already be final (FAILED, CANCELED, TIMEOUT) in the sandbox failure scenarios. data.id is the only key accepted by the status endpoint."
+        },
+        {
+          "case": "Required field missing",
+          "http_status": 400,
+          "body": {
+            "status": "REQUEST_BAD_INFOS",
+            "message": "A required field is missing",
+            "data": null,
+            "missing": ["user_data.user_phone"]
+          }
+        },
+        {
+          "case": "Amount below minimum",
+          "http_status": 400,
+          "body": {
+            "status": "REQUEST_BAD_INFOS",
+            "message": "Minimum amount for CM is 200",
+            "data": null
+          }
+        },
+        {
+          "case": "Unsupported country or payment method",
+          "http_status": 400,
+          "body": {
+            "status": "REQUEST_BAD_INFOS",
+            "message": "Unsupported country or payment_method",
+            "data": null,
+            "supported_options": [
+              { "payment_type": "CM_MOBILEMONEY", "payment_method": "MTN_MOMO", "label": "MTN Mobile Money", "currency": "XAF", "min_amount": 200 },
+              { "payment_type": "CM_MOBILEMONEY", "payment_method": "ORANGE_MONEY", "label": "Orange Money", "currency": "XAF", "min_amount": 200 }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "status",
+      "purpose": "Read the current status of a transaction. The only proof of outcome.",
+      "method": "POST",
+      "path": "/lapas-on-trans/trans/310/status-request",
+      "headers": { "Content-Type": "application/json" },
+      "query": {
+        "transaction_id": { "type": "string", "required": true, "description": "data.id returned by the payin (nk_tx_...)" }
+      },
+      "body": null,
+      "example_request_url": "https://api.nokash.app/lapas-on-trans/trans/310/status-request?transaction_id=nk_tx_xm5ojhd01lkv06c0bjvu",
+      "responses": [
+        {
+          "case": "Found",
+          "http_status": 200,
+          "body": {
+            "status": "REQUEST_OK",
+            "message": "Transaction status loaded",
+            "data": {
+              "id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+              "orderId": "ord_20260512_001",
+              "amount": 1000,
+              "status": "SUCCESS",
+              "statusReason": null,
+              "phone": "690000000",
+              "user_name": "Sandbox User",
+              "user_email": "sandbox@example.com"
+            }
+          }
+        },
+        {
+          "case": "Found, failed",
+          "http_status": 200,
+          "body": {
+            "status": "REQUEST_OK",
+            "message": "Transaction status loaded",
+            "data": {
+              "id": "nk_tx_8kcb1soleu8y8eaazsby",
+              "orderId": "ord_20260512_001",
+              "amount": 1000,
+              "status": "FAILED",
+              "statusReason": "Insufficient customer balance",
+              "phone": "690000000",
+              "user_name": "Sandbox User",
+              "user_email": "sandbox@example.com"
+            }
+          }
+        },
+        {
+          "case": "Unknown transaction",
+          "http_status": 404,
+          "body": {
+            "status": "REQUEST_BAD_INFOS",
+            "message": "Unknown transaction_id",
+            "data": null
+          }
+        }
+      ],
+      "notes": [
+        "No currency and no operator transaction reference in the response.",
+        "No authentication is shown on this call in the sandbox."
+      ]
+    }
+  ],
+
+  "inbound_notification": {
+    "name": "callback",
+    "purpose": "Nokash notifies a final status change. Used only as a trigger for a status check.",
+    "method": "POST",
+    "target": "callback_url sent with the payin",
+    "sent_when": "The transaction leaves PENDING. Not sent for PENDING.",
+    "event_types": ["payin.success", "payin.failed", "payin.canceled", "payin.timeout"],
+    "body": {
+      "id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+      "status": "SUCCESS",
+      "amount": 1000,
+      "phone": "690000000",
+      "orderId": "ord_20260512_001"
+    },
+    "signature": "None shown in the sandbox.",
+    "notes": "Documentation v4 says the callback works only with production keys."
+  },
+
+  "endpoints_not_used": [
+    {
+      "method": "GET",
+      "path": "/lapas-on-trans/transaction-options/payin",
+      "query": { "country": "CM" },
+      "reason": "Operators, currency and minimum come from the gateway configuration."
+    },
+    {
+      "method": "GET",
+      "path": "/lapas-on-trans/trans",
+      "reason": "Returns all transactions with no filter in the sandbox. Would only be useful to recover a payin whose response was lost if Nokash confirms a filter by order_id."
+    }
+  ],
+
+  "open_points": [
+    "Whether a transaction can be found by order_id, to recover a payin whose response was lost.",
+    "Whether a repeated order_id is rejected or creates a second transaction.",
+    "How the status call is authenticated in production.",
+    "Whether and how the callback is signed.",
+    "Whether the phone number must include the country code.",
+    "Official HMAC test vector.",
+    "Server-callable sandbox credentials and test numbers."
+  ]
+}
