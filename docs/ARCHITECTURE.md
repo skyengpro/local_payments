@@ -93,6 +93,7 @@ flowchart LR
     GW -- "returns the page URL" --> CONS
     PAYER --> PAGE --> API
     MTN -. "callback" .-> API
+    NK -. "callback" .-> API
     API --> REC
     SCH --> REC
     REC --> LC
@@ -475,13 +476,13 @@ payment. The PayPal and Razorpay gateways also populate
 | `local_payments.api.start_attempt(token, msisdn, operator)` | POST   | guest,`rate_limit`       | Checks the number and the operator, if the gateway offers a choice, creates an attempt and calls initiation. Returns the same state as`get_status`. |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
+| `local_payments.api.nokash_callback?attempt=…`          | POST      | guest,`rate_limit`       | Same as the MTN callback: queues`reconcile()`, and its body is never read. |
 | `Local Payment` form: Retry authorization | button, POST | `Local Payments Manager`, System Manager | Runs the authorization of a `Paid` session again, when it is `Failed` or `Pending` for longer than 5 minutes. Answers at once if one is already running. The try counts like any other. |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
-documentation is received. A Nokash callback is planned for production, where
-Nokash sends it: as with MTN, it will only queue `reconcile()`. It does not
-exist yet, so Nokash outcomes are found by polling.
+documentation is received. Nokash sends its notification with production keys
+only, so polling alone must be able to settle a Nokash payment.
 
 ## Scheduled tasks
 
@@ -540,8 +541,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
   above. Errors on the guest endpoints are logged without the traceback's
   variables, which hold the number. An unexpected server error reaches the
   payer as a generic refusal.
-- The MTN callback address is built from the site's `host_name` only,
-  never from the request, so a payer cannot redirect it.
+- The address a provider calls back is built from the site's `host_name`
+  only, never from the request, so a payer cannot redirect it.
 - `provider_data` contains no secret. A token tied to an attempt is stored
   there hashed.
 - Provider access tokens are cached per settings document until their
@@ -561,6 +562,7 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - An operator the gateway does not offer is rejected before any call.
 - A currency other than XAF on a Nokash gateway, which has no currency to
   configure.
+- An amount below the `minimum_amount` of a Nokash gateway.
 - An attempt on a `Paid` or `Void` session, or through a disabled gateway,
   is rejected.
 - A new attempt is rejected as long as another one is `Initiated` or
@@ -575,8 +577,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - A Payment Request that is not submitted is never marked paid: its
   authorization fails and is retried.
 - A change to a session outside the payment flow, by anyone.
-- An enabled Production MTN gateway with callbacks on, when the site's
-  `host_name` is not an `https://` address.
+- An enabled Production MTN or Nokash gateway with callbacks on, when the
+  site's `host_name` is not an `https://` address.
 
 ## Installation and configuration
 
@@ -584,8 +586,8 @@ Steps and prerequisites are in the [README](../README.md). What the design
 depends on:
 
 - `host_name` in the site config holds the site's public `https://`
-  address. MTN calls it back, and without it no callback is sent: the
-  outcome is then found by polling only.
+  address. MTN and Nokash call it back, and without it no callback is sent:
+  the outcome is then found by polling only.
 - `developer_mode` is off. In developer mode Frappe logs refused requests
   with their variables, the payer's number among them.
 - At least one person holds `Local Payments Manager`. Saving an enabled

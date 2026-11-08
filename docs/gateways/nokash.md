@@ -16,7 +16,8 @@ the operator and waiting happen on the local `local_payment_checkout` page.
 ## Merchant prerequisites
 
 - A Nokash account, with an integrator key and an app key.
-- Production keys for the callback, which Nokash does not send in the sandbox.
+- Production keys for the notification, which Nokash does not send in the sandbox.
+- For the notification, a public `https://` address in the site's `host_name`.
 
 ## Configuration
 
@@ -27,16 +28,26 @@ Manager can read or edit it.
 | --------------------------- | -------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `gateway_name`            | Data     | yes      | Contract name. Gives its name to the document and to the `Nokash-<gateway_name>` gateway. A change after the document is created is refused. |
 | `enabled`                 | Check    |          | A disabled gateway refuses `get_payment_url()`. Unchecked by default.                                                                        |
+| `environment`             | Select: Sandbox, Production | yes | Defaults to Sandbox. With Production, the warning about a missing `Local Payments Manager` applies, and `send_callback` needs an `https://` `host_name`. |
 | `api_base_url`            | Data     | yes      | Defaults to `https://api.nokash.app`. Must start with `https://`: the keys are sent to it.                                                 |
 | `i_space_key`             | Password | yes      | Integrator key. Sent in the payin body and used as the HMAC key.                                                                               |
 | `app_space_key`           | Password | yes      | App key. Sent in the payin body and part of the signed string.                                                                                 |
 | `accept_mtn_momo`         | Check    |          | Offers MTN MoMo to the payer. Checked by default.                                                                                              |
 | `accept_orange_money`     | Check    |          | Offers Orange Money to the payer. Checked by default. At least one operator is required.                                                       |
 | `pending_timeout_minutes` | Int      |          | Local delay before `Unresolved`. Defaults to 15, also when left empty or set to 0. Cannot be negative.                                       |
+| `minimum_amount`          | Int      |          | Smallest amount a payment request can ask for, in XAF. Defaults to 200, also when left empty or set to 0. Cannot be negative.                |
+| `send_callback`           | Check    |          | Sends `callback_url`, built from the site's `host_name`. Unchecked by default. In Production, an enabled gateway with this box checked needs an `https://` `host_name`. |
 
-The currency (`XAF`), the country code (`237`) and the length of the national
-number (9) are not settings: the Nokash offer in use covers Cameroon only. They
-are constants of `local_payments/providers/nokash.py`.
+The currency (`XAF`), the country (`CM`), the payment type (`CM_MOBILEMONEY`),
+the country code (`237`) and the length of the national number (9) are not
+settings: the Nokash offer in use covers Cameroon only, and the specification
+accepts no other value. They are constants of
+`local_payments/providers/nokash.py`.
+
+Saving the document creates the `Nokash-<gateway_name>` gateway if it does not
+exist yet, and announces it with `payment_gateway_enabled` when `enabled` is
+checked. A site can hold several documents, for instance one Sandbox and one
+Production.
 
 ## Operations
 
@@ -44,6 +55,7 @@ are constants of `local_payments/providers/nokash.py`.
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Payin     | `POST {api_base_url}/lapas-on-trans/trans/api-payin-request/407`. Header `hmac-signature`. Body: `i_space_key`, `app_space_key`, `payment_type`, `country`, `payment_method`, `order_id` (the `attempt_id`), `amount`, `user_data.user_phone` | `status`, `data.id`                                             |
 | Status    | `POST {api_base_url}/lapas-on-trans/trans/310/status-request?transaction_id=<data.id>`, no body                                                                                                                                                                   | `status`, `data.status`, `data.statusReason`, `data.amount` |
+| Incoming notification | `POST` on `callback_url`, `/api/method/local_payments.api.nokash_callback?attempt=<attempt_id>`, when the transaction leaves `PENDING`                                                                                                                | Serves only as a trigger                                            |
 
 Every answer has the same envelope: `status` (`REQUEST_OK`, `REQUEST_BAD_INFOS`
 or any other value), `message`, and `data`, filled only on `REQUEST_OK`. The
@@ -95,6 +107,10 @@ sequenceDiagram
         S->>N: POST status-request with data.id
         N-->>S: PENDING, then SUCCESS
     end
+    opt production keys and send_callback checked
+        N->>S: POST nokash_callback?attempt=attempt_id
+        S->>S: reconcile queued, the body is not read
+    end
     S->>S: amount matches, session Paid, then on_payment_authorized
     S-->>P: redirect to payment-success
 ```
@@ -117,8 +133,11 @@ sequenceDiagram
   over `{order_id}:{amount}:{user_phone}:{app_space_key}`. `amount` and
   `user_phone` are the values of the JSON body.
 - **Amount.** A whole number of XAF, sent as a JSON integer: `1000`, never
-  `1000.0`. A fraction is refused before any call, never rounded. The minimum
-  is not checked locally: Nokash answers `REQUEST_BAD_INFOS` below it.
+  `1000.0`. A fraction is refused when the session is created, never rounded.
+  So is an amount below `minimum_amount`, in `get_payment_url()` and in
+  `validate_minimum_transaction_amount()`, which ERPNext calls first. Nokash
+  still answers `REQUEST_BAD_INFOS` below its own minimum, and that ends the
+  attempt in `Error`.
 - **Number.** Sent as the national number, without the country code. The
   attempt keeps the full number.
 - **Operator.** The page offers the operators checked on the settings, with no
@@ -137,10 +156,14 @@ sequenceDiagram
   Status queries are not logged there.
 - **Initiation window.** As with MTN, no status query goes out before the payin
   has answered, or before the window ends if the process died.
-- **Callback.** Planned for production, since Nokash does not send it in the
-  sandbox. `NokashClient.payin()` takes an optional `callback_url`, which
-  nothing passes yet. The body will be a trigger only, as with MTN. No endpoint
-  exists today: the outcome is found by polling.
+- **Notification.** Nokash sends it with production keys only, so the outcome
+  must never depend on it. `callback_url` goes out only when `send_callback` is
+  checked and the site has a usable `host_name`, and it carries the `attempt_id`,
+  never the session token. The endpoint reads the attempt from the query string
+  and never the body, which proves nothing and is not signed as far as we know.
+  It queues `reconcile()`, at most one job per attempt. An unknown or settled
+  attempt gets the same empty answer and nothing is queued. A notification cannot
+  recover a lost id, since its body is not read.
 
 ## Known errors
 
@@ -159,12 +182,13 @@ sequenceDiagram
 | Authentication of the status call                  | None: the sandbox's real API mode also sends no credentials to `api.nokash.app` | Add it in `NokashClient.check_status`.                           |
 | HMAC encoding                                      | Lowercase hexadecimal, the sandbox's default among hex, HEX and base64         | One line in `sign`, and the test vector.                         |
 | Shape of `data.id` and `data.orderId` on status    | Repeat the values sent, as in the sandbox                                      | A mismatch leaves every attempt `Unresolved`: fix the comparison. |
-| Signature of the callback                          | Unknown                                                                        | To decide when the callback is written.                            |
+| Signature of the notification                      | None shown in the sandbox, so none is checked                                  | None for the outcome: the body is never read. A signature would only filter forged triggers. |
+| Notification in practice                           | Sent as the specification says, with production keys only                      | None for the outcome: page polling and the scheduler still settle it. |
 | Search for a transaction by `order_id`           | Not available                                                                  | If it exists, a lost id can be recovered automatically.            |
 | Repeated `order_id`                              | Unknown, so a payin is never repeated                                          | None while there is no retry.                                      |
 | Country code in `user_phone`                     | National number only                                                           | One line in the client, and the test vector.                       |
 | Official HMAC test vector                          | The vector of the specification, computed by us                                | Replace it. If it differs, review the signed string.               |
-| Minimum amount                                     | 200 XAF in the sandbox, not held locally                                       | None. A session below it ends in a refusal.                        |
+| Minimum amount                                     | 200 XAF in the sandbox, the default of `minimum_amount`                        | Adjust the field. A session below Nokash's real minimum ends in a refusal. |
 | Answer to invalid or expired keys                  | An unknown outcome, then an alert per attempt                                  | If it is `REQUEST_BAD_INFOS`, attempts end in `Error` instead. |
 | Number that does not belong to the chosen operator | `FAILED` on status                                                           | Adapt the mapping if Nokash refuses it at payin.                   |
 | Delay of `TIMEOUT`                               | 15 minutes locally                                                             | Adjust `pending_timeout_minutes`.                                |
@@ -175,5 +199,5 @@ sequenceDiagram
 
 | Source                                                                                                                                                | Nature                  | Scope             | Content used                                                                                                                     |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Nokash sandbox — `nokash.co/sandbox`, transcribed in [`../openAPI/nokash-payin-spec.json`](../openAPI/nokash-payin-spec.json), read on 2026-11-06 | Official, simulated API | Sandbox, Cameroon | Operations, signature, statuses, errors, callback.                                                                               |
+| Nokash sandbox — `nokash.co/sandbox`, transcribed in [`../openAPI/nokash-payin-spec.json`](../openAPI/nokash-payin-spec.json), read on 2026-11-06 | Official, simulated API | Sandbox, Cameroon | Operations, signature, statuses, errors, notification.                                                                               |
 | NOKASH API_PAYIN Documentation v4, July 2024                                                                                                          | Official, superseded    | Not stated        | Callback sent with production keys only. Replaced by the sandbox for the rest (it has no HMAC signature and a minimum of 1 XAF). |

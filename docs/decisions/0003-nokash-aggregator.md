@@ -100,8 +100,9 @@ of outcome: what is lost in the sandbox is confidentiality of the status, not it
   - when Nokash states how the status call is authenticated in production;
   - when a second currency or country is in scope, since the currency, country and number format are
     constants of `providers/nokash.py`;
-  - when the callback is added: its body carries `id` and `orderId`, enough to find a lost id, as long
-    as the status query that follows stays the proof. Nokash sends it with production keys only;
+  - the callback exists since LP-14 and only queues `reconcile()`, without reading its body. That body
+    carries `id` and `orderId`, enough to find a lost id, as long as the status query that follows stays
+    the proof. Using it would be a new decision. Nokash sends it with production keys only;
   - if Nokash confirms a search by `order_id`, which would resolve lost ids on its own.
 
 ## Actions

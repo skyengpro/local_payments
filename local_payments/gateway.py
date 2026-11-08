@@ -5,7 +5,8 @@
 
 A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name` and `initiation_name`, implements
 `check_status` and `initiate`, and has the attributes `gateway_name`, `enabled`, `currency`, `msisdn_prefix`,
-`msisdn_national_length` and `pending_timeout_minutes`. Nothing provider-specific belongs in this file.
+`msisdn_national_length` and `pending_timeout_minutes`. One the provider can call back also sets `callback_path`
+and has `environment` and `send_callback`. Nothing provider-specific belongs in this file.
 """
 
 from dataclasses import dataclass
@@ -65,6 +66,27 @@ def log_error(title: str, session_name: str | None = None, detail: str | None = 
 	)
 
 
+def callback_base(host_name: str | None, production: bool) -> str | None:
+	"""The address a provider can call back, from the site's host_name. None if there is none it can use.
+
+	Production needs an https:// address. get_url() is not used: without host_name it falls back to the
+	site name over http, and it adds the dev server's port.
+	"""
+	host_name = (host_name or "").strip()
+	# No scheme means http, as in Frappe.
+	url = urlsplit(host_name if "://" in host_name else f"http://{host_name}")
+	try:
+		port = url.port
+	except ValueError:
+		return None
+	if url.scheme not in ("https", "http") or not url.hostname:
+		return None
+	if production and url.scheme != "https":
+		return None
+	# Host and port only: credentials in host_name would reach the provider and the Integration Request.
+	return f"{url.scheme}://{url.hostname}" + (f":{port}" if port else "")
+
+
 def validate_amount_for_currency(amount, currency: str) -> None:
 	"""Reject amounts that aren't finite and positive, and fractions in a currency with no minor unit."""
 	amount = flt(amount)
@@ -83,6 +105,8 @@ class LocalPaymentGateway:
 	provider_name: str
 	# How the network log names the initiation call.
 	initiation_name: str
+	# Where the provider calls back, for a gateway that can be called back.
+	callback_path: str
 
 	@property
 	def payment_gateway_name(self) -> str:
@@ -122,6 +146,31 @@ class LocalPaymentGateway:
 				_("Enter your mobile money number: {0} digits, with or without +{1}.").format(length, prefix)
 			)
 		return msisdn
+
+	def callback_url(self, attempt_id: str) -> str | None:
+		"""None when the site has no address the provider can call. Status checks then find the outcome on their own."""
+		# Never from the request's Host header, which the payer chooses.
+		base = self.site_callback_base()
+		if not base:
+			return None
+		# The attempt_id, never the session token: this URL is public and the token opens the checkout page.
+		return f"{base}{self.callback_path}?{urlencode({'attempt': attempt_id})}"
+
+	def site_callback_base(self) -> str | None:
+		return callback_base(frappe.conf.host_name or frappe.conf.hostname, self.environment == "Production")
+
+	def validate_callback_host(self):
+		if (
+			cint(self.enabled)
+			and cint(self.send_callback)
+			and self.environment == "Production"
+			and not self.site_callback_base()
+		):
+			frappe.throw(
+				_(
+					"{0} callbacks need an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
+				).format(self.provider_name)
+			)
 
 	def validate_gateway_name_unchanged(self):
 		# Without this, Frappe would silently put the document name back into gateway_name.

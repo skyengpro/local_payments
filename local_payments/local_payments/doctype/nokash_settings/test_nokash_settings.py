@@ -8,13 +8,30 @@ from unittest.mock import patch
 import frappe
 import requests
 from frappe.tests import IntegrationTestCase
+from frappe.utils import add_to_date, now_datetime, set_request
+from frappe.website.serve import get_response_content
+from payments.utils import get_payment_gateway_controller
 
 import local_payments
+from local_payments import api
 from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
-from local_payments.local_payments.doctype.mtn_momo_settings.test_mtn_momo_settings import http_response
+from local_payments.local_payments.doctype.mtn_momo_settings.test_mtn_momo_settings import (
+	http_response,
+	site_host,
+)
+from local_payments.local_payments.doctype.nokash_settings.nokash_settings import CALLBACK_PATH
 from local_payments.providers.nokash import MTN_MOMO, ORANGE_MONEY, NokashError
-from local_payments.tests.test_reconcile import make_session, reload
+from local_payments.tests.test_checkout import PAGE
+from local_payments.tests.test_checkout import make_session as make_open_session
+from local_payments.tests.test_reconcile import (
+	EFFECT,
+	HOOK,
+	consumer_calls,
+	consumer_state,
+	make_session,
+	reload,
+)
 
 SETTINGS = "Nokash Settings"
 GATEWAY = "Nokash-nokash-test"
@@ -33,6 +50,35 @@ RECORDED = json.loads(
 
 def recorded(name):
 	return http_response(RECORDED[name]["status"], RECORDED[name]["body"])
+
+
+def recorded_for(name, attempt_id, **data):
+	"""A recorded status answer about this attempt, as Nokash would give it."""
+	body = RECORDED[name]["body"]
+	return http_response(
+		RECORDED[name]["status"], {**body, "data": {**body["data"], "orderId": attempt_id, **data}}
+	)
+
+
+def payment_args(**overrides):
+	return {
+		"amount": 1000,
+		"currency": "XAF",
+		"reference_doctype": "User",
+		"reference_docname": "Administrator",
+		**overrides,
+	}
+
+
+def let_the_check_interval_pass(attempt_id):
+	frappe.db.set_value(
+		"Local Payment Attempt",
+		{"attempt_id": attempt_id},
+		"last_checked_on",
+		add_to_date(now_datetime(), minutes=-1),
+		update_modified=False,
+	)
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- the next check reads it in its own transaction
 
 
 def make_settings(**overrides):
@@ -68,10 +114,18 @@ class TestNokashSettings(IntegrationTestCase):
 		sessions = frappe.get_all("Local Payment", {"payment_gateway": GATEWAY}, pluck="name")
 		frappe.db.delete("Version", {"ref_doctype": "Local Payment", "docname": ["in", sessions]})
 		frappe.db.delete("Integration Request", {"reference_docname": ["in", sessions]})
+		frappe.db.delete(
+			"Notification Log", {"document_type": "Local Payment", "document_name": ["in", sessions]}
+		)
+		frappe.db.delete("ToDo", {"description": EFFECT})
 		frappe.db.delete("Local Payment Attempt", {"parent": ["in", sessions]})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
 		frappe.db.delete("Error Log", {"method": "Nokash payment request refused"})
 		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() committed what this removes
+		frappe.set_user("Administrator")
+		if hasattr(frappe.local, "request"):
+			delattr(frappe.local, "request")
+		frappe.local.form_dict = frappe._dict()
 
 	def session(self, *attempts, **extra):
 		return make_session(*attempts, payment_gateway=GATEWAY, amount=1000, **extra)
@@ -210,3 +264,268 @@ class TestNokashSettings(IntegrationTestCase):
 
 		http.return_value.request.assert_not_called()
 		self.assertEqual((result.status, result.no_reference), (lc.PENDING, True))
+
+	def consumer_hook(self):
+		consumer_calls.clear()
+		consumer_state.update(fail=False, error=frappe.ValidationError, commit_first=False)
+		hooks = patch("frappe.get_doc_hooks", return_value={"User": {"on_payment_authorized": [HOOK]}})
+		hooks.start()
+		self.addCleanup(hooks.stop)
+
+	def open_session(self):
+		return make_open_session(payment_gateway=GATEWAY, amount=1000)
+
+	def render(self, token):
+		frappe.set_user("Guest")
+		frappe.local.form_dict = frappe._dict(token=token)
+		set_request(method="GET", path=PAGE, query_string=f"token={token}")
+		content = get_response_content(PAGE)
+		frappe.set_user("Administrator")
+		return content
+
+	def test_saving_a_configuration_makes_its_gateway_selectable_by_any_consumer(self):
+		gateway = frappe.get_doc("Payment Gateway", GATEWAY)
+		self.assertEqual((gateway.gateway_settings, gateway.gateway_controller), (SETTINGS, "nokash-test"))
+		self.assertEqual(get_payment_gateway_controller(GATEWAY).name, self.settings.name)
+
+		with patch("local_payments.gateway.call_hook_method") as announced:
+			make_settings(gateway_name="nokash-announced")
+			make_settings(gateway_name="nokash-quiet", enabled=0)
+		announced.assert_called_once_with("payment_gateway_enabled", gateway="Nokash-nokash-announced")
+
+	def test_several_configurations_coexist(self):
+		production = make_settings(gateway_name="nokash-production", environment="Production")
+		self.assertEqual((self.settings.environment, production.environment), ("Sandbox", "Production"))
+		for settings, gateway in ((self.settings, GATEWAY), (production, "Nokash-nokash-production")):
+			with self.subTest(gateway=gateway):
+				self.assertEqual(get_payment_gateway_controller(gateway).name, settings.name)
+		frappe.clear_messages()
+
+	def test_a_disabled_configuration_refuses_new_payment_requests(self):
+		self.settings.db_set("enabled", 0)
+		with self.assertRaises(frappe.ValidationError):
+			self.settings.get_payment_url(**payment_args())
+		self.assertFalse(frappe.db.exists("Local Payment", {"payment_gateway": GATEWAY}))
+
+	def test_the_keys_are_encrypted(self):
+		meta = frappe.get_meta(SETTINGS)
+		auth = frappe.qb.DocType("__Auth")
+		stored = dict(
+			frappe.qb.from_(auth)
+			.select(auth.fieldname, auth.password)
+			.where((auth.doctype == SETTINGS) & (auth.name == self.settings.name))
+			.run()
+		)
+		for field, secret in (("i_space_key", I_SPACE_KEY), ("app_space_key", APP_SPACE_KEY)):
+			with self.subTest(field):
+				self.assertEqual(meta.get_field(field).fieldtype, "Password")
+				self.assertNotEqual(frappe.db.get_value(SETTINGS, self.settings.name, field), secret)
+				self.assertNotEqual(stored[field], secret)
+				self.assertEqual(self.settings.get_password(field), secret)
+
+	def test_only_system_manager_can_open_the_configuration(self):
+		self.assertEqual({perm.role for perm in frappe.get_meta(SETTINGS).permissions}, {"System Manager"})
+		self.assertFalse(frappe.has_permission(SETTINGS, "read", user="Guest"))
+
+	def test_a_refused_payment_request_creates_nothing_and_calls_nobody(self):
+		self.settings.minimum_amount = 500
+		cases = {
+			"below the configured minimum": {"amount": 499},
+			"a fraction of XAF": {"amount": 1000.5},
+			"another currency": {"currency": "EUR"},
+		}
+		with patch(HTTP) as http:
+			for case, overrides in cases.items():
+				with self.subTest(case), self.assertRaises(frappe.ValidationError):
+					self.settings.get_payment_url(**payment_args(**overrides))
+		http.return_value.request.assert_not_called()
+		self.assertFalse(frappe.db.exists("Local Payment", {"payment_gateway": GATEWAY}))
+
+	def test_the_minimum_itself_is_accepted_without_calling_nokash(self):
+		self.settings.minimum_amount = 500
+		with patch(HTTP) as http:
+			url = self.settings.get_payment_url(**payment_args(amount=500))
+		self.assertIn("/local_payment_checkout?token=", url)
+		http.return_value.request.assert_not_called()
+
+	def test_erpnext_finds_the_minimum_check(self):
+		self.settings.validate_minimum_transaction_amount("XAF", 200)
+		with self.assertRaises(frappe.ValidationError):
+			self.settings.validate_minimum_transaction_amount("XAF", 199)
+
+	def test_the_minimum_defaults_when_empty_and_cannot_be_negative(self):
+		self.assertEqual(self.settings.minimum_amount, 200)
+		self.settings.minimum_amount = 0
+		self.settings.save()
+		self.assertEqual(self.settings.minimum_amount, 200)
+		self.settings.minimum_amount = -1
+		with self.assertRaises(frappe.ValidationError):
+			self.settings.save()
+
+	def test_the_page_offers_the_operators_enabled_in_the_configuration(self):
+		both = self.render(self.open_session().token)
+		self.assertIn(f'value="{MTN_MOMO}"', both)
+		self.assertIn(f'value="{ORANGE_MONEY}"', both)
+
+		self.settings.db_set("accept_mtn_momo", 0)
+		alone = self.render(self.open_session().token)
+		self.assertNotIn('name="operator"', alone)
+		self.assertIn('id="lp-start-attempt"', alone)
+
+	def test_a_bad_number_or_operator_is_refused_before_anything_is_recorded_or_sent(self):
+		session = self.open_session()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- start_attempt() runs its own transactions
+		refused = {
+			"too short": ("60000000", MTN_MOMO),
+			"too long": ("6000000011", MTN_MOMO),
+			"letters": ("6000000ab", MTN_MOMO),
+			"other country": ("+33600000001", MTN_MOMO),
+			"unknown operator": ("600000001", "AIRTEL"),
+			"no operator": ("600000001", None),
+		}
+		with patch(HTTP) as http:
+			for case, (number, operator) in refused.items():
+				with self.subTest(case), self.assertRaises(frappe.ValidationError):
+					api.start_attempt(session.token, number, operator)
+		http.return_value.request.assert_not_called()
+		self.assertEqual(reload(session).attempts, [])
+
+	def test_a_payment_with_each_operator_ends_paid_and_notifies_once_by_polling_alone(self):
+		self.consumer_hook()
+		accepted_id = RECORDED["payin_accepted"]["body"]["data"]["id"]
+		for operator in (MTN_MOMO, ORANGE_MONEY):
+			with self.subTest(operator):
+				consumer_calls.clear()
+				session = self.open_session()
+				frappe.db.commit()  # nosemgrep: frappe-manual-commit -- start_attempt() runs its own transactions
+
+				with patch(HTTP) as http:
+					request = http.return_value.request
+					request.return_value = recorded("payin_accepted")
+					state = api.start_attempt(session.token, "600000001", operator)
+					self.assertEqual(state["attempt_status"], lc.INITIATED)
+					sent = request.call_args.kwargs["json"]
+					self.assertEqual((sent["payment_method"], sent["amount"]), (operator, 1000))
+					self.assertNotIn("callback_url", sent)
+
+					attempt_id = reload(session).attempts[0].attempt_id
+					request.return_value = recorded_for("status_pending", attempt_id, id=accepted_id)
+					self.assertEqual(api.get_status(session.token)["attempt_status"], lc.PENDING)
+
+					let_the_check_interval_pass(attempt_id)
+					request.return_value = recorded_for("status_success", attempt_id, id=accepted_id)
+					state = api.get_status(session.token)
+					self.assertEqual((state["status"], state["attempt_status"]), ("Paid", lc.SUCCEEDED))
+
+					calls = request.call_count
+					let_the_check_interval_pass(attempt_id)
+					api.get_status(session.token)
+					self.assertEqual(request.call_count, calls)
+
+				session = reload(session)
+				self.assertEqual(
+					(session.authorization, session.provider_transaction_id), ("Done", accepted_id)
+				)
+				self.assertEqual(len(consumer_calls), 1)
+
+	def test_a_replayed_success_notifies_the_consumer_once(self):
+		self.consumer_hook()
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+
+		with patch(HTTP) as http:
+			http.return_value.request.return_value = recorded_for(
+				"status_success", ATTEMPT_ID, id=TRANSACTION_ID
+			)
+			rc.reconcile(ATTEMPT_ID)
+			let_the_check_interval_pass(ATTEMPT_ID)
+			self.assertIsNone(rc.reconcile(ATTEMPT_ID))
+
+		self.assertEqual(reload(session).status, "Paid")
+		self.assertEqual(len(consumer_calls), 1)
+
+	def test_a_different_amount_is_flagged_and_the_session_stays_open(self):
+		self.consumer_hook()
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+
+		with patch(HTTP) as http:
+			http.return_value.request.return_value = recorded_for(
+				"status_success", ATTEMPT_ID, id=TRANSACTION_ID, amount=900
+			)
+			rc.reconcile(ATTEMPT_ID)
+
+		session = reload(session)
+		self.assertEqual((session.status, session.attempts[0].amount_mismatch), ("Open", 1))
+		self.assertEqual(consumer_calls, [])
+
+	def test_still_pending_after_the_delay_becomes_unresolved_and_a_late_success_counts(self):
+		self.consumer_hook()
+		session = self.session(
+			{
+				"status": "Pending",
+				"attempt_id": ATTEMPT_ID,
+				"provider_transaction_id": TRANSACTION_ID,
+				"expires_on": add_to_date(now_datetime(), minutes=-1),
+			}
+		)
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+
+		with patch(HTTP) as http:
+			http.return_value.request.return_value = recorded_for(
+				"status_pending", ATTEMPT_ID, id=TRANSACTION_ID
+			)
+			rc.reconcile(ATTEMPT_ID)
+			row = reload(session).attempts[0]
+			self.assertEqual(row.status, lc.UNRESOLVED)
+			self.assertTrue(row.next_check_on)
+
+			let_the_check_interval_pass(ATTEMPT_ID)
+			http.return_value.request.return_value = recorded_for(
+				"status_success", ATTEMPT_ID, id=TRANSACTION_ID
+			)
+			rc.reconcile(ATTEMPT_ID)
+
+		self.assertEqual(reload(session).status, "Paid")
+		self.assertEqual(len(consumer_calls), 1)
+
+	def test_the_notification_address_comes_from_host_name_only_and_carries_the_attempt_id(self):
+		# The payer's request can name any host.
+		set_request(method="POST", base_url="http://attacker.example")
+		cases = {
+			"host_name set": (
+				"https://pay.example.com",
+				1,
+				f"https://pay.example.com{CALLBACK_PATH}?attempt={ATTEMPT_ID}",
+			),
+			"no host_name": (None, 1, None),
+			"notification off": ("https://pay.example.com", 0, None),
+		}
+		for case, (host_name, send_callback, expected) in cases.items():
+			with self.subTest(case), site_host(host_name):
+				self.settings.db_set("send_callback", send_callback)
+				_started, request = self.initiate(recorded("payin_accepted"))
+				self.assertEqual(request.call_args.kwargs["json"].get("callback_url"), expected)
+
+	def test_an_enabled_production_gateway_needs_a_host_nokash_can_call(self):
+		production = {"environment": "Production", "send_callback": 1}
+		cases = {
+			"no host_name": (None, production, False),
+			"http host_name": ("http://pay.example.com", production, False),
+			"https host_name": ("https://pay.example.com", production, True),
+			"callback off": (None, {**production, "send_callback": 0}, True),
+			"sandbox": (None, {**production, "environment": "Sandbox"}, True),
+		}
+		for case, (host_name, values, saved) in cases.items():
+			with self.subTest(case), site_host(host_name):
+				self.settings.update(values)
+				if saved:
+					self.settings.save()
+				else:
+					self.assertRaises(frappe.ValidationError, self.settings.save)
+			self.settings.reload()
+		frappe.clear_messages()

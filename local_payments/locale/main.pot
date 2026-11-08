@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-11-06 17:50+0000\n"
-"PO-Revision-Date: 2026-11-06 17:50+0000\n"
+"POT-Creation-Date: 2026-11-08 16:23+0000\n"
+"PO-Revision-Date: 2026-11-08 16:23+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -16,7 +16,12 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:160
+#. Description of the 'Environment' (Select) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "A Production gateway needs an https:// host_name to send callbacks."
+msgstr ""
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:128
 msgid "A Sandbox gateway must use {0}."
 msgstr ""
 
@@ -53,7 +58,7 @@ msgstr ""
 msgid "API Base URL"
 msgstr ""
 
-#: local_payments/gateway.py:141
+#: local_payments/gateway.py:190
 msgid "API Base URL must be an https:// address."
 msgstr ""
 
@@ -77,7 +82,7 @@ msgstr ""
 msgid "Accept Orange Money"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:116
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:138
 msgid "Accept at least one operator."
 msgstr ""
 
@@ -97,7 +102,7 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:72
+#: local_payments/gateway.py:94
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:58
 msgid "Amount must be strictly positive."
 msgstr ""
@@ -108,7 +113,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:396
+#: local_payments/reconcile.py:427
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -133,11 +138,11 @@ msgstr ""
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:403
+#: local_payments/reconcile.py:434
 msgid "Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
 msgstr ""
 
-#: local_payments/reconcile.py:397
+#: local_payments/reconcile.py:428
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -210,7 +215,7 @@ msgstr ""
 msgid "Check Count"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:93
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:112
 #: local_payments/templates/pages/local_payment_checkout.html:26
 msgid "Choose your mobile money operator."
 msgstr ""
@@ -301,7 +306,7 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:395
+#: local_payments/reconcile.py:426
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
@@ -318,12 +323,14 @@ msgstr ""
 msgid "Enter your mobile money number."
 msgstr ""
 
-#: local_payments/gateway.py:122
+#: local_payments/gateway.py:146
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr ""
 
 #. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
+#. Label of the environment (Select) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Environment"
 msgstr ""
 
@@ -359,7 +366,7 @@ msgstr ""
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/gateway.py:130
+#: local_payments/gateway.py:179
 msgid "Gateway Name cannot be changed once saved."
 msgstr ""
 
@@ -434,7 +441,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:166
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:134
 msgid "MSISDN National Length must be greater than zero."
 msgstr ""
 
@@ -446,7 +453,7 @@ msgstr ""
 msgid "MSISDN Prefix"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:164
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:132
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr ""
 
@@ -455,12 +462,8 @@ msgstr ""
 msgid "MTN MoMo Settings"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:83
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:102
 msgid "MTN Mobile Money"
-msgstr ""
-
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:176
-msgid "MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
 msgstr ""
 
 #. Description of the 'Authorization Failure Alerted' (Check) field in DocType
@@ -497,6 +500,15 @@ msgstr ""
 msgid "Minimal Settings doctype used only by the tests of gateway.py. Not a real provider."
 msgstr ""
 
+#. Label of the minimum_amount (Int) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Minimum Amount"
+msgstr ""
+
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:144
+msgid "Minimum Amount cannot be negative."
+msgstr ""
+
 #: local_payments/templates/pages/local_payment_checkout.html:28
 msgid "Mobile money number"
 msgstr ""
@@ -522,7 +534,7 @@ msgstr ""
 msgid "Next Check On"
 msgstr ""
 
-#: local_payments/gateway.py:155
+#: local_payments/gateway.py:204
 msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 msgstr ""
 
@@ -551,7 +563,7 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:83
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:102
 msgid "Orange Money"
 msgstr ""
 
@@ -635,11 +647,11 @@ msgstr ""
 msgid "Payment by {0}"
 msgstr ""
 
-#: local_payments/reconcile.py:401
+#: local_payments/reconcile.py:432
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
-#: local_payments/reconcile.py:398
+#: local_payments/reconcile.py:429
 msgid "Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
 msgstr ""
 
@@ -647,7 +659,7 @@ msgstr ""
 msgid "Payment received"
 msgstr ""
 
-#: local_payments/reconcile.py:402
+#: local_payments/reconcile.py:433
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr ""
 
@@ -670,12 +682,14 @@ msgstr ""
 msgid "Pending Timeout (Minutes)"
 msgstr ""
 
-#: local_payments/gateway.py:147
+#: local_payments/gateway.py:196
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr ""
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
+#. Option for the 'Environment' (Select) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Production"
 msgstr ""
 
@@ -732,18 +746,28 @@ msgstr ""
 msgid "Retry authorization"
 msgstr ""
 
-#: local_payments/gateway.py:158
+#: local_payments/gateway.py:207
 msgid "Role not assigned"
 msgstr ""
 
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
+#. Option for the 'Environment' (Select) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Sandbox"
 msgstr ""
 
 #. Label of the send_callback (Check) field in DocType 'MTN MoMo Settings'
+#. Label of the send_callback (Check) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Send Callback"
+msgstr ""
+
+#. Description of the 'Send Callback' (Check) field in DocType 'Nokash
+#. Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Sends Nokash the address to notify, built from the site's host_name. Nokash only notifies with production keys. The notification only triggers a status check."
 msgstr ""
 
 #. Description of the 'Target Environment' (Data) field in DocType 'MTN MoMo
@@ -766,6 +790,11 @@ msgstr ""
 #. Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Shown to the payer. At most 160 characters."
+msgstr ""
+
+#. Description of the 'Minimum Amount' (Int) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Smallest amount in XAF a payment request can ask for."
 msgstr ""
 
 #. Label of the started_on (Datetime) field in DocType 'Local Payment Attempt'
@@ -815,12 +844,16 @@ msgstr ""
 msgid "Target Environment"
 msgstr ""
 
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:54
+msgid "The minimum amount for this payment method is {0} {1}."
+msgstr ""
+
 #. Description of the 'Currency' (Link) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "The only currency this gateway accepts."
 msgstr ""
 
-#: local_payments/gateway.py:225
+#: local_payments/gateway.py:274
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
@@ -836,11 +869,11 @@ msgstr ""
 msgid "This payment method is not available at the moment."
 msgstr ""
 
-#: local_payments/gateway.py:214
+#: local_payments/gateway.py:263
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:303
+#: local_payments/api.py:315
 msgid "This payment page is no longer available."
 msgstr ""
 
@@ -894,7 +927,11 @@ msgstr ""
 msgid "Your payment could not be started. Please try again in a moment."
 msgstr ""
 
-#: local_payments/gateway.py:74
+#: local_payments/gateway.py:170
+msgid "{0} callbacks need an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
+msgstr ""
+
+#: local_payments/gateway.py:96
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
 

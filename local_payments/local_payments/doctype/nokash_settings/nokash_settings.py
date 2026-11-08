@@ -7,7 +7,7 @@ from dataclasses import asdict
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from local_payments import lifecycle as lc
 from local_payments.gateway import Initiated, LocalPaymentGateway
@@ -25,6 +25,7 @@ from local_payments.providers.nokash import (
 	NokashData,
 )
 
+CALLBACK_PATH = "/api/method/local_payments.api.nokash_callback"
 OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
 
 
@@ -36,10 +37,24 @@ class NokashSettings(LocalPaymentGateway, Document):
 
 	provider_name = "Nokash"
 	initiation_name = "Payin"
+	callback_path = CALLBACK_PATH
 	# Fixed for Cameroon, so these are not fields.
 	currency = CURRENCY
 	msisdn_prefix = MSISDN_PREFIX
 	msisdn_national_length = MSISDN_NATIONAL_LENGTH
+
+	def get_payment_url(self, **kwargs):
+		# Only ERPNext calls the minimum check itself. A Web Form or a business doctype comes straight here.
+		self.validate_minimum_transaction_amount(kwargs.get("currency"), kwargs.get("amount"))
+		return super().get_payment_url(**kwargs)
+
+	def validate_minimum_transaction_amount(self, currency, amount):
+		if flt(amount) < cint(self.minimum_amount):
+			frappe.throw(
+				_("The minimum amount for this payment method is {0} {1}.").format(
+					self.minimum_amount, CURRENCY
+				)
+			)
 
 	def check_status(self, attempt_id: str, provider_data: dict) -> ProviderResult:
 		transaction_id = frappe.db.get_value(
@@ -56,7 +71,11 @@ class NokashSettings(LocalPaymentGateway, Document):
 		exchanges = []
 		try:
 			initiation = self.nokash_client(on_exchange=exchanges.append).payin(
-				attempt_id, session.amount, msisdn, NokashData(**provider_data).operator
+				attempt_id,
+				session.amount,
+				msisdn,
+				NokashData(**provider_data).operator,
+				callback_url=self.callback_url(attempt_id) if cint(self.send_callback) else None,
 			)
 		except InvalidRequest as refused:
 			# Refused before any call, so there is nothing at Nokash to query.
@@ -109,8 +128,19 @@ class NokashSettings(LocalPaymentGateway, Document):
 		self.validate_api_base_url()
 		self.validate_operators()
 		self.set_pending_timeout()
-		self.warn_if_no_alert_manager()
+		self.set_minimum_amount()
+		self.validate_callback_host()
+		if self.environment == "Production":
+			self.warn_if_no_alert_manager()
 
 	def validate_operators(self):
 		if not self.offered_operators():
 			frappe.throw(_("Accept at least one operator."))
+
+	def set_minimum_amount(self):
+		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.
+		minimum = cint(self.minimum_amount)
+		if minimum < 0:
+			frappe.throw(_("Minimum Amount cannot be negative."))
+		if minimum == 0:
+			self.minimum_amount = cint(self.meta.get_field("minimum_amount").default)

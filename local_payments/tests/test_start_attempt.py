@@ -291,12 +291,15 @@ class TestStartAttempt(CheckoutTestCase):
 
 
 class TestMtnMomoCallback(CheckoutTestCase):
+	endpoint = "mtn_momo_callback"
+	http_method = "PUT"
+
 	def callback(self, attempt, body=None):
-		# As MTN sends it: the attempt in the query string, a JSON body Frappe turns into form_dict.
+		# As the provider sends it: the attempt in the query string, a JSON body Frappe turns into form_dict.
 		query = f"attempt={attempt}" if attempt is not None else ""
 		set_request(
-			method="PUT",
-			path="/api/method/local_payments.api.mtn_momo_callback",
+			method=self.http_method,
+			path=f"/api/method/local_payments.api.{self.endpoint}",
 			query_string=query,
 			data=json.dumps(body or {}),
 			content_type="application/json",
@@ -309,7 +312,7 @@ class TestMtnMomoCallback(CheckoutTestCase):
 			patch.object(rc, "reconcile") as reconcile,
 			patch.object(rc, "_provider_for", return_value=provider),
 		):
-			answer = api.mtn_momo_callback()
+			answer = getattr(api, self.endpoint)()
 		# Never inside the request: reconcile() commits and asks the provider.
 		reconcile.assert_not_called()
 		self.assertEqual(provider.calls, [])
@@ -338,3 +341,36 @@ class TestMtnMomoCallback(CheckoutTestCase):
 				answer, enqueue = self.callback(attempt)
 				self.assertIsNone(answer)
 				enqueue.assert_not_called()
+
+
+class TestNokashCallback(TestMtnMomoCallback):
+	endpoint = "nokash_callback"
+	http_method = "POST"
+
+	def test_the_body_is_never_read(self):
+		attempt_id, other = str(uuid.uuid4()), str(uuid.uuid4())
+		session = make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		make_session({"attempt_id": other, "status": lc.PENDING})
+		claims = {
+			"id": "nk_tx_forged",
+			"status": "SUCCESS",
+			"amount": 5000,
+			"orderId": other,
+			"attempt": other,
+		}
+
+		answer, enqueue = self.callback(attempt_id, body=claims)
+
+		self.assertIsNone(answer)
+		enqueue.assert_called_once()
+		self.assertEqual(enqueue.call_args.kwargs["attempt_id"], attempt_id)
+		self.assertEqual(frappe.db.get_value("Local Payment", session.name, "status"), "Open")
+		row = attempts(session)[0]
+		self.assertEqual((row.status, row.provider_transaction_id), (lc.PENDING, None))
+
+	def test_an_attempt_named_only_in_the_body_queues_nothing(self):
+		attempt_id = str(uuid.uuid4())
+		make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		answer, enqueue = self.callback(None, body={"orderId": attempt_id, "attempt": attempt_id})
+		self.assertIsNone(answer)
+		enqueue.assert_not_called()

@@ -14,11 +14,11 @@ from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
+from local_payments.gateway import callback_base
 from local_payments.local_payments.doctype.mtn_momo_settings.mtn_momo_settings import (
 	CALLBACK_PATH,
 	SANDBOX_HOST,
 	CacheTokenStore,
-	callback_base,
 )
 from local_payments.providers.mtn_momo import MtnMomoError
 from local_payments.reconcile import MANAGER_ROLE

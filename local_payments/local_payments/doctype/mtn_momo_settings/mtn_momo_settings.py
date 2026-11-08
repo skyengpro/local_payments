@@ -3,7 +3,7 @@
 
 import re
 from collections.abc import Callable
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 import frappe
 from frappe import _
@@ -33,27 +33,6 @@ INITIATION_STATUSES = {
 TAKEN_IN = frozenset({InitiationOutcome.ACCEPTED, InitiationOutcome.DUPLICATE_REFERENCE})
 
 
-def callback_base(host_name: str | None, production: bool) -> str | None:
-	"""The address MTN can call back, from the site's host_name. None if there is none it can use.
-
-	MTN only calls https:// addresses in production. get_url() is not used: without host_name it falls
-	back to the site name over http, and it adds the dev server's port.
-	"""
-	host_name = (host_name or "").strip()
-	# No scheme means http, as in Frappe.
-	url = urlsplit(host_name if "://" in host_name else f"http://{host_name}")
-	try:
-		port = url.port
-	except ValueError:
-		return None
-	if url.scheme not in ("https", "http") or not url.hostname:
-		return None
-	if production and url.scheme != "https":
-		return None
-	# Host and port only: credentials in host_name would reach MTN and the Integration Request.
-	return f"{url.scheme}://{url.hostname}" + (f":{port}" if port else "")
-
-
 class CacheTokenStore:
 	"""Access tokens in the Redis cache, which drops each one at its expiry."""
 
@@ -75,6 +54,7 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 
 	provider_name = "MTN MoMo"
 	initiation_name = "RequestToPay"
+	callback_path = CALLBACK_PATH
 
 	@property
 	def token_cache_key(self) -> str:
@@ -114,18 +94,6 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			status, self.log_exchanges(attempt_id, session.name, exchanges, initiation.outcome in TAKEN_IN)
 		)
 
-	def callback_url(self, attempt_id: str) -> str | None:
-		"""None when the site has no address MTN can call. Status checks then find the outcome on their own."""
-		# Never from the request's Host header, which the payer chooses.
-		base = self.site_callback_base()
-		if not base:
-			return None
-		# The attempt_id, never the session token: this URL is public and the token opens the checkout page.
-		return f"{base}{CALLBACK_PATH}?{urlencode({'attempt': attempt_id})}"
-
-	def site_callback_base(self) -> str | None:
-		return callback_base(frappe.conf.host_name or frappe.conf.hostname, self.environment == "Production")
-
 	def mtn_client(self, on_exchange: Callable[[Exchange], None] | None = None) -> MtnMomoClient:
 		config = MtnMomoConfig(
 			api_base_url=self.api_base_url,
@@ -164,16 +132,3 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("MSISDN Prefix must contain digits only, without + or 00."))
 		if cint(self.msisdn_national_length) <= 0:
 			frappe.throw(_("MSISDN National Length must be greater than zero."))
-
-	def validate_callback_host(self):
-		if (
-			cint(self.enabled)
-			and cint(self.send_callback)
-			and self.environment == "Production"
-			and not self.site_callback_base()
-		):
-			frappe.throw(
-				_(
-					"MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
-				)
-			)

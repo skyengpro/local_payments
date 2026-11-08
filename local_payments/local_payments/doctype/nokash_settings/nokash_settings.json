@@ -9,6 +9,7 @@
  "field_order": [
   "gateway_name",
   "enabled",
+  "environment",
   "api_section",
   "api_base_url",
   "column_break_api",
@@ -18,7 +19,9 @@
   "accept_mtn_momo",
   "accept_orange_money",
   "column_break_payer",
-  "pending_timeout_minutes"
+  "pending_timeout_minutes",
+  "minimum_amount",
+  "send_callback"
  ],
  "fields": [
   {
@@ -38,6 +41,16 @@
    "fieldtype": "Check",
    "in_list_view": 1,
    "label": "Enabled"
+  },
+  {
+   "default": "Sandbox",
+   "description": "A Production gateway needs an https:// host_name to send callbacks.",
+   "fieldname": "environment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Environment",
+   "options": "Sandbox\nProduction",
+   "reqd": 1
   },
   {
    "fieldname": "api_section",
@@ -97,11 +110,25 @@
    "fieldname": "pending_timeout_minutes",
    "fieldtype": "Int",
    "label": "Pending Timeout (Minutes)"
+  },
+  {
+   "default": "200",
+   "description": "Smallest amount in XAF a payment request can ask for.",
+   "fieldname": "minimum_amount",
+   "fieldtype": "Int",
+   "label": "Minimum Amount"
+  },
+  {
+   "default": "0",
+   "description": "Sends Nokash the address to notify, built from the site's host_name. Nokash only notifies with production keys. The notification only triggers a status check.",
+   "fieldname": "send_callback",
+   "fieldtype": "Check",
+   "label": "Send Callback"
   }
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-06 00:00:00.000000",
+ "modified": "2026-11-08 18:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Nokash Settings",

@@ -1,7 +1,7 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
-"""Guest endpoints: the payer's browser (`start_attempt`, `get_status`) and MTN's callback.
+"""Guest endpoints: the payer's browser (`start_attempt`, `get_status`) and the providers' callbacks.
 
 A payer holds a token and nothing else: every lookup starts from it, and the session's sequential
 name never leaves this module. `Local Payment` is readable by managers only, so these reads go
@@ -61,11 +61,11 @@ STARTS_WINDOW = 600
 STARTS_PER_TOKEN = 10
 STARTS_PER_ADDRESS = 30
 
-# MTN sends one callback per attempt, from a few addresses for every attempt of the site, so the
-# per-address budget is wide.
+# A provider sends about one callback per attempt, from a few addresses for every attempt of the site, so
+# the per-address budget is wide.
 CALLBACKS_PER_ADDRESS = 600
 
-# attempt_id is a UUID v4, sent to MTN as X-Reference-Id.
+# attempt_id is a UUID v4, sent to MTN as X-Reference-Id and to Nokash as order_id.
 ATTEMPT_ID_PATTERN = re.compile(r"\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z")
 
 
@@ -266,6 +266,18 @@ def get_status(token: str) -> dict:
 @rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
 def mtn_momo_callback() -> None:
 	"""Queue a status check for a known attempt still in play. Every other call gets the same empty answer."""
+	_queue_status_check()
+
+
+# Nokash signs nothing we know of, and its body is never read (D3): the call only queues reconcile().
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
+def nokash_callback() -> None:
+	"""Queue a status check for a known attempt still in play. Every other call gets the same empty answer."""
+	_queue_status_check()
+
+
+def _queue_status_check() -> None:
 	# Frappe builds form_dict from the JSON body alone when there is one, so read the query string.
 	attempt = frappe.request.args.get("attempt")
 	if not attempt or not ATTEMPT_ID_PATTERN.match(attempt):
