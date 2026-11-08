@@ -1,5 +1,5 @@
 {
-	"_source": "Rebuilt from docs/openAPI/nokash-payin-spec.json, not captured. status_pending, status_canceled and status_timeout are derived from its status examples and status_reasons_observed. Replace them with captures, keys and numbers removed.",
+	"_source": "Rebuilt from docs/openAPI/nokash-payin-spec.json, not captured. status_pending, status_canceled and status_timeout are derived from its status examples and status_reasons_observed. Status answers carry the tests' transaction and attempt ids. Replace them with captures, keys and numbers removed.",
 	"signature_vector": {
 		"i_space_key": "test_integrator_space_key",
 		"app_space_key": "test_app_space_key",
@@ -84,7 +84,7 @@
 			"message": "Transaction status loaded",
 			"data": {
 				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
-				"orderId": "ord_20260512_001",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "PENDING",
 				"statusReason": null,
@@ -101,7 +101,7 @@
 			"message": "Transaction status loaded",
 			"data": {
 				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
-				"orderId": "ord_20260512_001",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "SUCCESS",
 				"statusReason": null,
@@ -117,8 +117,8 @@
 			"status": "REQUEST_OK",
 			"message": "Transaction status loaded",
 			"data": {
-				"id": "nk_tx_8kcb1soleu8y8eaazsby",
-				"orderId": "ord_20260512_001",
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "FAILED",
 				"statusReason": "Insufficient customer balance",
@@ -134,8 +134,8 @@
 			"status": "REQUEST_OK",
 			"message": "Transaction status loaded",
 			"data": {
-				"id": "nk_tx_8kcb1soleu8y8eaazsby",
-				"orderId": "ord_20260512_001",
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "CANCELED",
 				"statusReason": "Canceled by the user",
@@ -151,8 +151,8 @@
 			"status": "REQUEST_OK",
 			"message": "Transaction status loaded",
 			"data": {
-				"id": "nk_tx_8kcb1soleu8y8eaazsby",
-				"orderId": "ord_20260512_001",
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "TIMEOUT",
 				"statusReason": "No response from the operator",
@@ -168,8 +168,8 @@
 			"status": "REQUEST_OK",
 			"message": "Transaction status loaded",
 			"data": {
-				"id": "nk_tx_8kcb1soleu8y8eaazsby",
-				"orderId": "ord_20260512_001",
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
 				"amount": 1000,
 				"status": "REVERSED",
 				"statusReason": null

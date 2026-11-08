@@ -77,6 +77,12 @@ class FakeHttp:
 		return self.answer
 
 
+def answering(**data):
+	"""The recorded success, with some of its data replaced."""
+	body = RECORDED["status_success"]["body"]
+	return FakeResponse(200, {**body, "data": {**body["data"], **data}})
+
+
 def client(answer, on_exchange=None):
 	http = FakeHttp(answer)
 	return NokashClient(CONFIG, http, on_exchange), http
@@ -224,7 +230,7 @@ class TestPayin(unittest.TestCase):
 class TestStatus(unittest.TestCase):
 	def test_the_call_asks_by_nokash_id_with_no_body_and_no_keys(self):
 		nokash, http = client(recorded("status_success"))
-		nokash.check_status(TRANSACTION_ID)
+		nokash.check_status(TRANSACTION_ID, ATTEMPT_ID)
 
 		call = http.calls[0]
 		self.assertEqual(
@@ -248,13 +254,17 @@ class TestStatus(unittest.TestCase):
 		}
 		for name, (status, provider_status) in cases.items():
 			with self.subTest(name):
-				result = client(recorded(name))[0].check_status(TRANSACTION_ID)
+				result = client(recorded(name))[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
 				self.assertEqual((result.status, result.provider_status), (status, provider_status))
 
 	def test_a_success_carries_what_the_session_is_compared_with(self):
-		result = client(recorded("status_success"))[0].check_status(TRANSACTION_ID)
+		result = client(recorded("status_success"))[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
 		self.assertTrue(lc.amounts_match(1000.0, result.amount))
 		self.assertEqual((result.currency, result.transaction_id), ("XAF", TRANSACTION_ID))
+
+	def test_an_answer_that_names_no_transaction_is_still_read(self):
+		result = client(answering(id=None, orderId=None))[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
+		self.assertEqual(result.status, lc.SUCCEEDED)
 
 	def test_anything_else_is_a_failed_check(self):
 		cases = {
@@ -272,8 +282,10 @@ class TestStatus(unittest.TestCase):
 			),
 			"redirect": (FakeResponse(302, None), 302, None),
 			"timeout": (requests.ReadTimeout(), None, None),
+			"another transaction": (answering(id="nk_tx_other"), 200, "id mismatch"),
+			"another attempt": (answering(orderId="another-attempt"), 200, "orderId mismatch"),
 		}
 		for case, (answer, http_status, code) in cases.items():
 			with self.subTest(case), self.assertRaises(NokashError) as failed:
-				client(answer)[0].check_status(TRANSACTION_ID)
+				client(answer)[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
 			self.assertEqual((failed.exception.http_status, failed.exception.code), (http_status, code))

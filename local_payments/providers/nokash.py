@@ -164,7 +164,7 @@ class NokashClient:
 		)
 		return read_payin(response)
 
-	def check_status(self, transaction_id: str) -> ProviderResult:
+	def check_status(self, transaction_id: str, attempt_id: str) -> ProviderResult:
 		"""Ask Nokash where a transaction stands. Raises NokashError when it gives no usable answer."""
 		try:
 			response = self.http.request(
@@ -179,7 +179,7 @@ class NokashClient:
 			raise NokashError()
 
 		try:
-			return read_status(response, transaction_id)
+			return read_status(response, transaction_id, attempt_id)
 		except _Unreadable as unreadable:
 			# Raised here, not in read_status, so the logged traceback leaves out the payer's data.
 			raise NokashError(response.status_code, str(unreadable) or None) from None
@@ -234,11 +234,16 @@ def read_payin(response) -> Initiation:
 	return Initiation(InitiationOutcome.UNKNOWN, http_status=status, code=answer)
 
 
-def read_status(response, transaction_id: str) -> ProviderResult:
-	"""Raises _Unreadable unless this is a REQUEST_OK carrying a status we know."""
+def read_status(response, transaction_id: str, attempt_id: str) -> ProviderResult:
+	"""Raises _Unreadable unless this is a REQUEST_OK about this attempt, carrying a status we know."""
 	answer, data = envelope(response)
 	if response.status_code != 200 or answer != REQUEST_OK:
 		raise _Unreadable((answer or "")[:40])
+
+	# Only compared when present: the contract comes from a simulated API.
+	for name, expected in (("id", transaction_id), ("orderId", attempt_id)):
+		if data.get(name) not in (None, expected):
+			raise _Unreadable(f"{name} mismatch")
 
 	raw_status = data.get("status")
 	if not isinstance(raw_status, str) or raw_status not in STATUSES:

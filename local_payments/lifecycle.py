@@ -146,6 +146,16 @@ def currencies_match(session_currency: str | None, confirmed_currency: str | Non
 	return session_currency.strip().upper() == confirmed_currency.strip().upper()
 
 
+def status_after_failed_check(attempt_status: str, past_deadline: bool) -> str:
+	"""Where an attempt goes when its provider gave no usable answer.
+
+	Such a check says nothing about the payment, so only the attempt's local deadline can move it.
+	"""
+	if attempt_status in ATTEMPT_IN_FLIGHT_STATES and past_deadline:
+		return UNRESOLVED
+	return attempt_status
+
+
 def resolve(
 	*,
 	session_status: str,

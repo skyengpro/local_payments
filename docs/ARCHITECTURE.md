@@ -628,10 +628,11 @@ Nothing else varies from one site to another.
 - **Nokash confirms the amount only.** Its status answer has no currency: the
   client reports XAF, the only currency of the contract
   ([ADR 0003](decisions/0003-nokash-aggregator.md)).
-- **A status query that keeps failing never reaches the deadline.** The attempt
-  stays as it is, and the scheduler asks again on each run. This holds for
-  every provider, but a Nokash `404` keeps failing where an MTN `404` ends the
-  attempt.
+- **A status query that keeps failing settles nothing.** A failed check says
+  nothing about the payment: the error is logged, the next check is scheduled,
+  and at its deadline the attempt moves to `Unresolved`, so the payer can try
+  again and the 72-hour alert applies. A Nokash `404` keeps failing this way,
+  where an MTN `404` ends the attempt.
 - **The Orange Money Local/USSD technical contract is not yet known.**
   Endpoints, the status schema, and the format of the transmitted
   identifier depend on the documentation delivered when the merchant

@@ -50,7 +50,7 @@ class NokashSettings(LocalPaymentGateway, Document):
 		if not transaction_id:
 			# The payin's answer never arrived. Pending lets the attempt reach its deadline.
 			return ProviderResult(lc.PENDING, provider_status="No Nokash transaction id", no_reference=True)
-		return self.nokash_client().check_status(transaction_id)
+		return self.nokash_client().check_status(transaction_id, attempt_id)
 
 	def initiate(self, attempt_id: str, session, msisdn: str, provider_data: dict) -> Initiated:
 		exchanges = []

@@ -9,7 +9,7 @@ from unittest.mock import patch
 import frappe
 from frappe.database import get_db
 from frappe.tests import IntegrationTestCase
-from frappe.utils import add_to_date, now_datetime
+from frappe.utils import add_to_date, get_datetime, now_datetime
 
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
@@ -91,6 +91,17 @@ class FakeProvider:
 	def check_status(self, attempt_id, provider_data):
 		self.calls.append(attempt_id)
 		return self.results.pop(0)
+
+
+class ProviderDown(Exception):
+	pass
+
+
+class BrokenProvider:
+	"""Gives no usable answer, as a provider that is down or answers something unknown."""
+
+	def check_status(self, attempt_id, provider_data):
+		raise ProviderDown
 
 
 def succeeded(amount="5000", currency="XAF"):
@@ -406,6 +417,52 @@ class TestReconcile(IntegrationTestCase):
 
 		self.assertIsNone(self.reconcile(session, SlowProvider(succeeded())))
 		self.assertEqual(reload(session).status, "Open")
+
+	def test_a_failed_check_still_reschedules_the_attempt(self):
+		overdue = add_to_date(now_datetime(), hours=-1)
+		for status in ("Initiated", "Pending"):
+			with self.subTest(status=status):
+				session = make_session({"status": status, "next_check_on": overdue})
+
+				with self.assertRaises(ProviderDown):
+					self.reconcile(session, BrokenProvider())
+
+				row = reload(session).attempts[0]
+				self.assertEqual(row.status, status)
+				self.assertGreater(get_datetime(row.next_check_on), get_datetime(overdue))
+
+	def test_a_failed_check_past_the_deadline_becomes_unresolved_and_a_late_success_is_applied(self):
+		past = add_to_date(now_datetime(), minutes=-1)
+		for status in ("Initiated", "Pending"):
+			with self.subTest(status=status):
+				session = make_session({"status": status, "expires_on": past})
+
+				with self.assertRaises(ProviderDown):
+					self.reconcile(session, BrokenProvider())
+
+				row = reload(session).attempts[0]
+				self.assertEqual(row.status, "Unresolved")
+				self.assertGreater(get_datetime(row.next_check_on), now_datetime() + timedelta(minutes=30))
+				self.assertEqual(alerts_for(session), [])
+
+				frappe.db.set_value("Local Payment Attempt", row.name, "last_checked_on", None)
+				frappe.db.commit()
+				self.reconcile(session, FakeProvider(succeeded()))
+				self.assertEqual(reload(session).status, "Paid")
+
+	def test_a_failed_check_never_touches_an_attempt_settled_meanwhile(self):
+		session = make_session()
+
+		class SettledMeanwhile(BrokenProvider):
+			def check_status(self, attempt_id, provider_data):
+				frappe.db.set_value("Local Payment Attempt", session.attempts[0].name, "status", "Failed")
+				frappe.db.commit()
+				return super().check_status(attempt_id, provider_data)
+
+		with self.assertRaises(ProviderDown):
+			self.reconcile(session, SettledMeanwhile())
+
+		self.assertEqual(reload(session).attempts[0].status, "Failed")
 
 	def test_an_attempt_with_nothing_to_query_stays_open_until_its_deadline(self):
 		session = make_session({"status": "Initiated"})

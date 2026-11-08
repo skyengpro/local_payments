@@ -14,12 +14,12 @@ its website and transcribed in
 Nokash differs from the direct MTN gateway on four points, and two of them touch rules the
 application holds as invariants:
 
-| Point | Direct MTN | Nokash | Rule concerned |
-| --- | --- | --- | --- |
-| Operator | One per gateway | Chosen per payin (`payment_method`) | ARCHITECTURE, scope |
-| Status answer | Amount and currency | Amount only | Amount and currency are compared with the session |
-| Status authentication | Bearer token and subscription key | None shown in the sandbox | D3, a merchant-authenticated query is the proof |
-| Status key | `attempt_id`, chosen by the site | Nokash's own id, returned by the payin | None, but an id lost with the payin answer cannot be recovered |
+| Point                 | Direct MTN                         | Nokash                                 | Rule concerned                                                 |
+| --------------------- | ---------------------------------- | -------------------------------------- | -------------------------------------------------------------- |
+| Operator              | One per gateway                    | Chosen per payin (`payment_method`)  | ARCHITECTURE, scope                                            |
+| Status answer         | Amount and currency                | Amount only                            | Amount and currency are compared with the session              |
+| Status authentication | Bearer token and subscription key  | None shown in the sandbox              | D3, a merchant-authenticated query is the proof                |
+| Status key            | `attempt_id`, chosen by the site | Nokash's own id, returned by the payin | None, but an id lost with the payin answer cannot be recovered |
 
 `lifecycle.resolve()` compares currencies strictly: a missing confirmed currency never matches, so a
 Nokash success would always end as `amount_mismatch`.
@@ -36,7 +36,10 @@ Nokash is a `frappe/payments` gateway like the others: a `Nokash Settings` docty
   client reports it as the confirmed currency. `lifecycle.py` stays strict for every provider.
 - **Status authentication.** The sandbox call is accepted as it is. The site still calls a configured
   address over TLS, so a third party cannot forge the answer; anyone holding the id can read it.
-  Knowing how the call is authenticated in production is a prerequisite for going live.
+  The sandbox's real API mode sends no credentials to `api.nokash.app` either, so this is probably
+  how production behaves, not a sandbox shortcut. Knowing how the call is authenticated in production
+  is a prerequisite for going live. The client refuses an answer whose `id` or `orderId` differs
+  from the attempt's.
 - **Lost id.** An attempt with no Nokash id cannot be queried. It stays open until its local deadline,
   moves to `Unresolved`, and the managers are alerted at once, even if the session has been paid since.
   No query goes out for it.
@@ -45,12 +48,12 @@ Nokash is a `frappe/payments` gateway like the others: a `Nokash Settings` docty
 
 ### Option A: one gateway, operator on the page, currency fixed in the client (chosen)
 
-| Dimension | Assessment |
-| --- | --- |
-| Complexity | Medium: one doctype, one client, one choice on the page |
-| Effect on `lifecycle.py` | One neutral field on `ProviderResult` |
-| Merchant setup | One gateway for both operators |
-| Honesty of the data | `confirmed_currency` holds a value Nokash did not state |
+| Dimension                  | Assessment                                                |
+| -------------------------- | --------------------------------------------------------- |
+| Complexity                 | Medium: one doctype, one client, one choice on the page   |
+| Effect on `lifecycle.py` | One neutral field on `ProviderResult`                   |
+| Merchant setup             | One gateway for both operators                            |
+| Honesty of the data        | `confirmed_currency` holds a value Nokash did not state |
 
 **Advantages:** the amount check stays the same for every provider. The consumer offers one payment
 method and the payer keeps their choice of operator.
@@ -60,11 +63,11 @@ confirmed.
 
 ### Option B: a "currency not confirmed" flag in `lifecycle.py`
 
-| Dimension | Assessment |
-| --- | --- |
-| Complexity | Low in the client, higher in the pure core |
+| Dimension                  | Assessment                                                 |
+| -------------------------- | ---------------------------------------------------------- |
+| Complexity                 | Low in the client, higher in the pure core                 |
 | Effect on `lifecycle.py` | A new branch in the rule that decides a payment is secured |
-| Honesty of the data | `confirmed_currency` stays empty |
+| Honesty of the data        | `confirmed_currency` stays empty                         |
 
 **Advantages:** the record says exactly what Nokash answered.
 
@@ -75,15 +78,8 @@ currency, to describe a case with a single possible currency.
 
 **Advantages:** the page does not change. The session says which operator was used.
 
-**Drawbacks:** every consumer has to offer two gateways for one merchant contract, and the merchant
+**Drawbacks:** every consumer has to offer two gateways for one account contract, and the account
 sets up the same keys twice.
-
-### Option D: stay on direct contracts only
-
-**Advantages:** no aggregator between the site and the operators. D3 holds as it is.
-
-**Drawbacks:** Orange Money stays blocked by its merchant contract, and each new operator needs its
-own contract and client.
 
 ## Trade-off analysis
 
@@ -113,6 +109,5 @@ of outcome: what is lost in the sandbox is confidentiality of the status, not it
 1. [ ] `providers/nokash.py` and its recorded responses.
 2. [ ] `Nokash Settings`, with the operator choice on the page.
 3. [ ] Alert at the deadline for an attempt with no id.
-4. [ ] Confirm the points listed in [`../gateways/nokash.md`](../gateways/nokash.md) with Nokash
-       before production.
+4. [ ] Confirm the points listed in [`../gateways/nokash.md`](../gateways/nokash.md) with Nokash before production.
 5. [ ] Validate the exchange against a real Nokash environment once server-callable keys exist.

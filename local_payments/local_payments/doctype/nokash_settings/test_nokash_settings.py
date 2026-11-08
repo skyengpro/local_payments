@@ -21,6 +21,7 @@ GATEWAY = "Nokash-nokash-test"
 HTTP = "local_payments.providers.nokash.requests.Session"
 ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
 MSISDN = "237000000001"
+NATIONAL = "000000001"
 TRANSACTION_ID = "nk_tx_xm5ojhd01lkv06c0bjvu"
 I_SPACE_KEY = "fake-i-key"
 APP_SPACE_KEY = "fake-app-key"
@@ -136,7 +137,7 @@ class TestNokashSettings(IntegrationTestCase):
 					frappe.db.get_value("Integration Request", started.integration_request, "status"), logged
 				)
 
-	def test_the_network_log_and_the_refusal_hold_no_secret_and_no_number(self):
+	def test_the_network_log_holds_no_secret_and_the_refusal_no_number(self):
 		started, request = self.initiate(recorded("payin_below_minimum"))
 		signature = request.call_args.kwargs["headers"]["hmac-signature"]
 		self.assertEqual(request.call_args.kwargs["json"]["i_space_key"], I_SPACE_KEY)
@@ -148,7 +149,7 @@ class TestNokashSettings(IntegrationTestCase):
 
 		refusal = frappe.get_last_doc("Error Log", filters={"method": "Nokash payment request refused"}).error
 		self.assertIn("REQUEST_BAD_INFOS", refusal)
-		self.assertNotIn(MSISDN, refusal)
+		self.assertNotIn(NATIONAL, refusal)
 
 	def test_a_failed_network_log_does_not_lose_the_transaction_id(self):
 		with (
@@ -172,7 +173,9 @@ class TestNokashSettings(IntegrationTestCase):
 		request.assert_not_called()
 
 	def test_a_success_goes_through_reconcile_and_marks_the_session_paid(self):
-		session = self.session({"status": "Pending", "provider_transaction_id": TRANSACTION_ID})
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
 		attempt_id = session.attempts[0].attempt_id
 		frappe.db.commit()
 
@@ -189,7 +192,7 @@ class TestNokashSettings(IntegrationTestCase):
 		self.assertEqual((row.status, row.provider_transaction_id), ("Succeeded", TRANSACTION_ID))
 		self.assertFalse(row.amount_mismatch)
 
-	def test_a_failed_check_leaves_the_attempt_unchanged(self):
+	def test_a_failed_check_reports_the_error_and_leaves_the_status(self):
 		session = self.session({"status": "Pending", "provider_transaction_id": TRANSACTION_ID})
 		frappe.db.commit()
 
