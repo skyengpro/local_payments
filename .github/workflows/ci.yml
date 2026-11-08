@@ -99,7 +99,7 @@ jobs:
           bench get-app payments --branch version-16
           # pinned SHA of payments version-16: reproducible, known rollback point
           # get-app clones shallow, so the pin is gone from the clone once version-16 moves on.
-          git -C apps/payments fetch --depth 1 origin cca07d9f9392e2ea0e521c5975151db9e4b6c321
+          git -C apps/payments fetch --depth 1 https://github.com/frappe/payments cca07d9f9392e2ea0e521c5975151db9e4b6c321
           git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
           if [ "${{ matrix.erpnext }}" = "true" ]; then
             bench get-app erpnext --branch version-16
