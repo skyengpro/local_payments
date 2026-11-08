@@ -71,7 +71,7 @@ class TestNokashSettings(IntegrationTestCase):
 		frappe.db.delete("Local Payment Attempt", {"parent": ["in", sessions]})
 		frappe.db.delete("Local Payment", {"payment_gateway": GATEWAY})
 		frappe.db.delete("Error Log", {"method": "Nokash payment request refused"})
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() committed what this removes
 
 	def session(self, *attempts, **extra):
 		return make_session(*attempts, payment_gateway=GATEWAY, amount=1000, **extra)
@@ -177,7 +177,7 @@ class TestNokashSettings(IntegrationTestCase):
 			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
 		)
 		attempt_id = session.attempts[0].attempt_id
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
 
 		with patch(HTTP) as http:
 			http.return_value.request.return_value = recorded("status_success")
@@ -194,7 +194,7 @@ class TestNokashSettings(IntegrationTestCase):
 
 	def test_a_failed_check_reports_the_error_and_leaves_the_status(self):
 		session = self.session({"status": "Pending", "provider_transaction_id": TRANSACTION_ID})
-		frappe.db.commit()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() rolls back on a failed check
 
 		with patch(HTTP) as http:
 			http.return_value.request.return_value = recorded("status_unknown_transaction")
