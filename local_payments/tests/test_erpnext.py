@@ -13,7 +13,12 @@ from local_payments import api
 from local_payments import erpnext as ep
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
-from local_payments.tests.test_reconcile import FakeProvider, locked_elsewhere, make_session
+from local_payments.tests.test_reconcile import (
+	FakeProvider,
+	locked_elsewhere,
+	make_session,
+	other_connection,
+)
 
 GATEWAY_NAME = "lp-erpnext"
 GATEWAY = f"MTN MoMo-{GATEWAY_NAME}"
@@ -219,16 +224,20 @@ class TestSettlePaymentRequest(IntegrationTestCase):
 		rc.authorize(session.name)
 		self.assert_settled(session, request)
 
+	def run_hook(self, request):
+		"""Our hook alone: from ERPNext 16.54, the controller's own method settles the request before it."""
+		ep.on_payment_authorized(request, "on_payment_authorized", "Completed")
+
 	def test_request_on_another_gateway_is_left_as_it_is(self):
 		request = self.payment_request(self.other_gateway_account)
-		request.run_method("on_payment_authorized", "Completed")
+		self.run_hook(request)
 		self.assertEqual(frappe.db.get_value("Payment Request", request.name, "status"), "Requested")
 		self.assertEqual(self.entries(request), [])
 
 	def test_request_without_a_paid_session_is_not_settled(self):
 		request = self.payment_request()
 		self.session(request, status="Open")
-		request.run_method("on_payment_authorized", "Completed")
+		self.run_hook(request)
 		self.assertEqual(frappe.db.get_value("Payment Request", request.name, "status"), "Requested")
 		self.assertEqual(self.entries(request), [])
 
@@ -237,7 +246,7 @@ class TestSettlePaymentRequest(IntegrationTestCase):
 		self.assertTrue(rc.authorize(session.name))
 		self.assertTrue(rc.authorize(session.name))
 		# The request in memory still says Requested: only the locked read can tell it is paid.
-		request.run_method("on_payment_authorized", "Completed")
+		self.run_hook(request)
 		self.assert_settled(session, request)
 
 	def test_request_settled_by_erpnext_itself_is_not_settled_again(self):
@@ -251,6 +260,26 @@ class TestSettlePaymentRequest(IntegrationTestCase):
 		with patch.object(PaymentRequest, "on_payment_authorized", upstream, create=True):
 			rc.authorize(session.name)
 		self.assert_settled(session, request)
+
+	def test_the_request_is_locked_while_erpnext_settles_it(self):
+		from erpnext.accounts.doctype.payment_request.payment_request import PaymentRequest
+
+		found = []
+
+		def upstream(doc, status):
+			other = other_connection()
+			try:
+				other.sql("select name from `tabPayment Request` where name = %s for update", doc.name)
+				found.append("not locked")
+			except frappe.QueryTimeoutError:
+				found.append("locked")
+			finally:
+				other.close()
+
+		session, _request = self.paid_session()
+		with patch.object(PaymentRequest, "on_payment_authorized", upstream, create=True):
+			rc.authorize(session.name)
+		self.assertEqual(found, ["locked"])
 
 	def test_refused_entry_keeps_the_payment_and_settles_once_fixed(self):
 		session, request = self.paid_session()

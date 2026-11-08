@@ -360,7 +360,8 @@ def _provider_for(gateway: str) -> StatusProvider:
 
 
 def _call_consumer(session, attempt):
-	reference = frappe.get_doc(session.reference_doctype, session.reference_docname)
+	# Locked and read fresh: a consumer may decide from its own status whether it was already settled.
+	reference = frappe.get_doc(session.reference_doctype, session.reference_docname, for_update=True)
 	data = frappe.parse_json(session.request_data or "{}")
 	data.update(
 		payment_gateway=session.payment_gateway,

@@ -46,9 +46,10 @@ progress of its merchant contract.
   shared by all consumers (ADR 0001).
 - **`frappe/payments` does not publish a version.** It is pinned by SHA
   on its `version-16` branch (`cca07d9f9392e2ea0e521c5975151db9e4b6c321`). MIT license.
-- **ERPNext is optional.** When it is installed, `Payment Request` does not
-  implement `on_payment_authorized` (frappe/payments#204): a successful
-  payment does not finalize it without intervention (ADR 0002).
+- **ERPNext is optional.** When it is installed, `Payment Request` implements
+  `on_payment_authorized` only from ERPNext 16.54. Before that, a successful
+  payment does not finalize it without intervention (frappe/payments#204,
+  ADR 0002).
 - **Providers are outside the site's control.** Their notifications can be
   missing, arrive several times, or be forged.
 - **Load assumption.** A few hundred payments per day per site at most. The
@@ -225,7 +226,8 @@ A `company` field on the settings, which would duplicate
 
 `local_payments` registers `on_payment_authorized` on `Payment Request` via
 `doc_events`, only for its own gateways, and calls `set_as_paid()` once a
-session of the request is `Paid`: ERPNext is the one that creates the
+session of the request is `Paid`, unless ERPNext 16.54 or later has just done
+so in its own method: ERPNext is the one that creates the
 Payment Entry. ERPNext checks the user's rights while doing so, and the
 payer is a Guest, so that one call runs as Administrator, after the guards,
 and the caller's state is put back afterwards. When the request is
