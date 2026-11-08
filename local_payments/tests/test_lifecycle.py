@@ -74,6 +74,22 @@ class TestNewAttemptGuard(unittest.TestCase):
 		lc.ensure_can_start_attempt([lc.SUCCEEDED, lc.FAILED, lc.EXPIRED, lc.UNRESOLVED, lc.ERROR])
 
 
+class TestFailedCheck(unittest.TestCase):
+	def test_only_the_deadline_moves_an_attempt(self):
+		cases = {
+			(lc.INITIATED, False): lc.INITIATED,
+			(lc.PENDING, False): lc.PENDING,
+			(lc.INITIATED, True): lc.UNRESOLVED,
+			(lc.PENDING, True): lc.UNRESOLVED,
+			(lc.UNRESOLVED, True): lc.UNRESOLVED,
+		}
+		for (status, past_deadline), expected in cases.items():
+			with self.subTest(status=status, past_deadline=past_deadline):
+				self.assertEqual(lc.status_after_failed_check(status, past_deadline), expected)
+				if expected != status:
+					lc.check_attempt_transition(status, expected)
+
+
 class TestResolve(unittest.TestCase):
 	def test_success_pays_open_session_even_after_unresolved(self):
 		for attempt in (lc.PENDING, lc.UNRESOLVED):

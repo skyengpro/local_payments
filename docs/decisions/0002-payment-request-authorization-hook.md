@@ -2,7 +2,8 @@
 
 **Status:** Accepted
 **Date:** 2026-09-11
-**Updated:** 2026-10-08 (user context, cancellation, guards, retry button)
+**Updated:** 2026-10-08 (user context, cancellation, guards, retry button),
+2026-11-08 (ERPNext 16.54 settles the request itself)
 
 ## Context
 
@@ -11,6 +12,11 @@ status)` on the reference document. ERPNext's `Payment Request` does not
 implement this method, neither in v15, nor in v16, nor on the `develop`
 branch (frappe/payments#204, open). A successful payment therefore leaves the
 Payment Request in the `Requested` state, with no Payment Entry.
+
+ERPNext 16.54.0 does implement it (16.52.0 did not): for `Authorized` or
+`Completed`, unless the request in memory is already `Paid`, the controller
+calls `set_as_paid()`, itself as Administrator. The hook stays for the earlier
+v16 releases this application supports.
 
 `Payment Request` does know how to settle itself, though: `set_as_paid()`
 creates and submits the Payment Entry from the `Payment Gateway Account`.
@@ -192,10 +198,15 @@ than turning every payment from the page into a failure and a delayed retry.
 - **Traceability:** the Payment Entry takes the Payment Request's name as
   `reference_no`, as ERPNext does. The provider's transaction id is found on
   the `Local Payment` session that references this Payment Request.
-- **Version upgrade:** if ERPNext ever adds `on_payment_authorized` to
-  `Payment Request`, the controller's method will run before the hook. The
-  database status re-read (step 3) then prevents a second Payment Entry. An
-  integration test simulates this case.
+- **Version upgrade:** from ERPNext 16.54, the controller's
+  `on_payment_authorized` runs before the hook and settles the request. The
+  database status re-read (step 3) then prevents a second Payment Entry. The
+  controller's own check has no lock, so `reconcile.authorize()` loads the
+  reference document with `for_update` before calling it. Step 2 now guards
+  only the hook: the controller settles for whoever calls it. The method is
+  not whitelisted, and this application calls it only once the session is
+  `Paid`. Integration tests cover the lock and the settlement by the
+  controller.
 - **User context:** the Payment Entry is created by Administrator, whoever
   triggered the authorization.
 - **Cancellation:** a request whose payment is received but not booked

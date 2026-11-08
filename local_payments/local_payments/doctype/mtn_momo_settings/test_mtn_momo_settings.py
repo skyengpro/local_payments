@@ -203,7 +203,10 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 		}
 		for case, (values, managers, warned) in cases.items():
 			frappe.clear_messages()
-			with self.subTest(case), patch(f"{CONTROLLER}.get_users_with_role", return_value=managers):
+			with (
+				self.subTest(case),
+				patch("local_payments.gateway.get_users_with_role", return_value=managers),
+			):
 				self.settings.update(values)
 				self.settings.save()
 				messages = [m["message"] for m in frappe.get_message_log()]
@@ -258,7 +261,7 @@ class TestInitiate(IntegrationTestCase):
 		CacheTokenStore().delete(self.settings.token_cache_key)
 		with patch("local_payments.providers.mtn_momo.requests.Session") as http:
 			http.return_value.request.side_effect = list(replies)
-			started = self.settings.initiate(ATTEMPT_ID, session, MSISDN)
+			started = self.settings.initiate(ATTEMPT_ID, session, MSISDN, {})
 		return started, http.return_value.request
 
 	def test_each_mtn_answer_gives_the_attempt_status_and_log_status(self):

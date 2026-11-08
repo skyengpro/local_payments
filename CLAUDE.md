@@ -1,7 +1,7 @@
 # local_payments
 
 Frappe app that adds Cameroon mobile-money gateways (MTN MoMo first, then Orange Money
-Local/USSD) on top of `frappe/payments`. Targets Frappe v16 (frappe, erpnext and payments on `version-16`, payments pinned by SHA).
+Local/USSD, and Nokash for both through one aggregator) on top of `frappe/payments`. Targets Frappe v16 (frappe, erpnext and payments on `version-16`, payments pinned by SHA).
 ERPNext is optional. Earlier versions are out of scope.
 
 ## Source of truth
@@ -26,6 +26,7 @@ Read before touching:
 | `erpnext.py` (Payment Request)   | ADR 0002, ARCHITECTURE D6                                                            |
 | `providers/mtn_momo.py`          | `gateways/mtn-momo.md` (statuts, erreurs, points à confirmer)                     |
 | `providers/orange_money.py`      | `gateways/orange-money.md` — contract NOT received, do not implement from guesses |
+| `providers/nokash.py`            | `gateways/nokash.md` (statuses, errors, points to confirm), ADR 0003              |
 | `scheduler.py`                   | ARCHITECTURE "Tâches planifiées"                                                   |
 
 ## Layout
@@ -33,18 +34,19 @@ Read before touching:
 Pure core (no `frappe` import, enforced by CI): `providers/`, `lifecycle.py`.
 Frappe adapters: `gateway.py`, `api.py`, `reconcile.py`, `erpnext.py`, `scheduler.py`, `templates/pages/local_payment_checkout`. 
 
-Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
+Doctypes: `MTN MoMo Settings`, `Orange Money Settings`, `Nokash Settings`,
 `Local Payment`, `Local Payment Attempt` (child table).
 
 ## Invariants (never break; details in ARCHITECTURE)
 
 1. `get_payment_url()` creates a `Local Payment` session and returns the checkout URL. It never calls a provider. GET on the checkout page has no side effect; only POST `start_attempt` starts an attempt (D2).
-2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback body or URL parameter (D3).
+2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback body or URL parameter (D3). Nokash shows no authentication on its status call in the sandbox: see ADR 0003.
 3. Record, then act. Session -> `Paid` is committed in its own transaction. `on_payment_authorized` runs in a second transaction under a row lock (`frappe.get_doc(..., for_update=True)`). If it fails: `authorization = Failed`, `Paid` stays (D4).
 4. Consumer callbacks can be replayed and run as Guest, user or Administrator: idempotent, no
    dependence on `frappe.session.user`.
 5. Provider-confirmed amount and currency are compared with the session. Mismatch ->
    `amount_mismatch`, session stays `Open`. XAF has no sub-unit: reject non-integers, never round.
+   Nokash confirms no currency, so its client reports the contract's XAF (ADR 0003).
 6. `providers/` and `lifecycle.py` import no `frappe`. No HTTP call outside `providers/`.
 7. Secrets live in `Password` fields only. Never in logs, `provider_data`, Integration Request,
    fixtures, tests, recorded HTTP responses, or commit messages.
@@ -56,7 +58,7 @@ Doctypes: `MTN MoMo Settings`, `Orange Money Settings`,
 
 ## Frappe rules
 
-- No `frappe.db.commit()` in controllers or hooks. Explicit commits only where D4 requires them (`reconcile.py`), and in `api._open_attempt`, which commits the new attempt before the provider call.
+- No `frappe.db.commit()` in controllers or hooks. Explicit commits only where D4 requires them (`reconcile.py`), in `api._open_attempt`, which commits the new attempt before the provider call, and in `api._start`, which commits the provider's id once it is recorded.
 - `Local Payments Manager` and any other role ship as fixtures or patches, never hand-configured.
 - Deliverables are app code. No Server Scripts, no Client Scripts created in the desk.
 - Code must work on v16. Check APIs in the installed v16 sources.

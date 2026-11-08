@@ -165,14 +165,23 @@ def reconcile(attempt_id: str, provider: StatusProvider | None = None) -> Resolu
 		return None
 	session_name, gateway, provider_data = claimed
 
-	provider = provider or _provider_for(gateway)
-	result = provider.check_status(attempt_id, provider_data)
+	try:
+		provider = provider or _provider_for(gateway)
+		result = provider.check_status(attempt_id, provider_data)
+	except Exception:
+		_record_failed_check(session_name, attempt_id)
+		raise  # the caller logs it
 
 	recorded = _record(session_name, attempt_id, result)
 	if not recorded:
 		return None
 	resolution, alert = recorded
 
+	if alert == "no_reference":
+		# Kept only if the alert goes out. Otherwise the next check sends it.
+		frappe.db.set_value(
+			"Local Payment Attempt", {"attempt_id": attempt_id}, "alerted", 1, update_modified=False
+		)
 	if alert:
 		alert_managers(session_name, attempt_id, alert)
 	if resolution.session_paid:
@@ -263,7 +272,7 @@ def _record(
 		session_currency=session.currency,
 		attempt_status=row.status,
 		result=result,
-		past_deadline=bool(row.expires_on) and now >= get_datetime(row.expires_on),
+		past_deadline=_past_deadline(row, now),
 	)
 
 	previous = row.status
@@ -296,9 +305,37 @@ def _record(
 		if resolution.amount_mismatch
 		else "void_paid"
 		if resolution.void_paid
+		else "no_reference"
+		if result.no_reference and row.status == lc.UNRESOLVED and not row.alerted
 		else None
 	)
 	return resolution, alert
+
+
+def _record_failed_check(session_name: str, attempt_id: str) -> None:
+	"""Keep an attempt moving when its provider gave no usable answer.
+
+	Otherwise it would never reach its deadline, the payer could not retry, no manager would hear of it,
+	and it would stay first in the scheduler's batch, ahead of every other gateway's attempts.
+	"""
+	frappe.db.rollback()  # drop whatever the failed check left half-done, it is not ours to commit
+	now = now_datetime()
+	session = frappe.get_doc("Local Payment", session_name, for_update=True)
+	row = _attempt_row(session, attempt_id)
+	if row.status not in CHECKABLE_STATES:
+		# Another trigger settled this attempt while we were waiting for the provider.
+		frappe.db.rollback()  # nothing to keep, release the row lock
+		return
+
+	previous = row.status
+	row.status = lc.status_after_failed_check(row.status, _past_deadline(row, now))
+	row.next_check_on = _next_attempt_check(now, row)
+	save_state(session, history=row.status != previous)
+	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- must survive the caller's rollback on the error
+
+
+def _past_deadline(row, now) -> bool:
+	return bool(row.expires_on) and now >= get_datetime(row.expires_on)
 
 
 def _paying_attempt(session):
@@ -323,7 +360,8 @@ def _provider_for(gateway: str) -> StatusProvider:
 
 
 def _call_consumer(session, attempt):
-	reference = frappe.get_doc(session.reference_doctype, session.reference_docname)
+	# Locked and read fresh: a consumer may decide from its own status whether it was already settled.
+	reference = frappe.get_doc(session.reference_doctype, session.reference_docname, for_update=True)
 	data = frappe.parse_json(session.request_data or "{}")
 	data.update(
 		payment_gateway=session.payment_gateway,
@@ -393,6 +431,9 @@ def alert_managers(session_name: str, detail: str | int | None, reason: str) -> 
 		),
 		"authorization_exhausted": _("Payment on {0} is received but its authorization failed {1} times."),
 		"void_paid": _("Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."),
+		"no_reference": _(
+			"Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
+		),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:

@@ -9,19 +9,12 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint
-from frappe.utils.user import get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.gateway import Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
-from local_payments.providers.mtn_momo import (
-	Exchange,
-	InitiationOutcome,
-	InvalidRequest,
-	MtnMomoClient,
-	MtnMomoConfig,
-)
-from local_payments.reconcile import MANAGER_ROLE
+from local_payments.providers.common import Exchange, InvalidRequest
+from local_payments.providers.mtn_momo import InitiationOutcome, MtnMomoClient, MtnMomoConfig
 
 SANDBOX_HOST = "sandbox.momodeveloper.mtn.com"
 CALLBACK_PATH = "/api/method/local_payments.api.mtn_momo_callback"
@@ -81,6 +74,7 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 	"""
 
 	provider_name = "MTN MoMo"
+	initiation_name = "RequestToPay"
 
 	@property
 	def token_cache_key(self) -> str:
@@ -95,7 +89,7 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 		# MTN needs nothing beyond the attempt_id, so provider_data is not read.
 		return self.mtn_client().check_status(attempt_id)
 
-	def initiate(self, attempt_id: str, session, msisdn: str) -> Initiated:
+	def initiate(self, attempt_id: str, session, msisdn: str, provider_data: dict) -> Initiated:
 		exchanges = []
 		try:
 			initiation = self.mtn_client(on_exchange=exchanges.append).request_to_pay(
@@ -132,46 +126,6 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 	def site_callback_base(self) -> str | None:
 		return callback_base(frappe.conf.host_name or frappe.conf.hostname, self.environment == "Production")
 
-	def log_refusal(self, attempt_id: str, session_name: str, detail: str) -> None:
-		# The detail names the outcome and MTN's codes only, never the payer's number.
-		frappe.log_error(
-			title="MTN MoMo payment request refused",
-			message=f"Attempt {attempt_id}: {detail}",
-			reference_doctype="Local Payment",
-			reference_name=session_name,
-		)
-
-	def log_exchanges(
-		self, attempt_id: str, session_name: str, exchanges: list[Exchange], taken_in: bool
-	) -> str | None:
-		"""One Integration Request per attempt: the request as sent, then MTN's answer to each send."""
-		if not exchanges:
-			return None
-		request = exchanges[0]
-		log = frappe.get_doc(
-			{
-				"doctype": "Integration Request",
-				"integration_request_service": self.provider_name,
-				"request_description": "RequestToPay",
-				"request_id": attempt_id,
-				"reference_doctype": "Local Payment",
-				"reference_docname": session_name,
-				"url": request.url,
-				"request_headers": frappe.as_json(request.request_headers),
-				"data": frappe.as_json(request.request_body),
-				"output": frappe.as_json(
-					[
-						{"status_code": sent.status_code, "body": sent.response_body, "error": sent.error}
-						for sent in exchanges
-					]
-				),
-				"status": "Completed" if taken_in else "Failed",
-			}
-		)
-		# Not create_request_log(), which commits. The payer is a Guest, and only System Manager may create one.
-		log.insert(ignore_permissions=True)
-		return log.name
-
 	def mtn_client(self, on_exchange: Callable[[Exchange], None] | None = None) -> MtnMomoClient:
 		config = MtnMomoConfig(
 			api_base_url=self.api_base_url,
@@ -192,26 +146,17 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 		self.validate_msisdn_format()
 		self.set_pending_timeout()
 		self.validate_callback_host()
-		self.warn_if_no_alert_manager()
-
-	def validate_gateway_name_unchanged(self):
-		# Without this, Frappe would silently put the document name back into gateway_name.
-		if not self.is_new() and self.gateway_name != self.name:
-			frappe.throw(
-				_("Gateway Name cannot be changed once saved."), exc=frappe.CannotChangeConstantError
-			)
+		if self.environment == "Production":
+			self.warn_if_no_alert_manager()
 
 	def validate_api_base_url(self):
-		# validate() runs before Frappe's mandatory check, which reports a missing value itself.
-		if not self.api_base_url:
-			return
-		self.api_base_url = self.api_base_url.strip()
-		# Merchant credentials are sent to this URL.
-		url = urlsplit(self.api_base_url)
-		if url.scheme != "https" or not url.hostname:
-			frappe.throw(_("API Base URL must be an https:// address."))
+		super().validate_api_base_url()
 		# The sandbox reads EUR back as the contract currency, so it must never point at production.
-		if self.environment == "Sandbox" and url.hostname != SANDBOX_HOST:
+		if (
+			self.api_base_url
+			and self.environment == "Sandbox"
+			and urlsplit(self.api_base_url).hostname != SANDBOX_HOST
+		):
 			frappe.throw(_("A Sandbox gateway must use {0}.").format(f"https://{SANDBOX_HOST}"))
 
 	def validate_msisdn_format(self):
@@ -219,14 +164,6 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("MSISDN Prefix must contain digits only, without + or 00."))
 		if cint(self.msisdn_national_length) <= 0:
 			frappe.throw(_("MSISDN National Length must be greater than zero."))
-
-	def set_pending_timeout(self):
-		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.
-		timeout = cint(self.pending_timeout_minutes)
-		if timeout < 0:
-			frappe.throw(_("Pending Timeout (Minutes) cannot be negative."))
-		if timeout == 0:
-			self.pending_timeout_minutes = cint(self.meta.get_field("pending_timeout_minutes").default)
 
 	def validate_callback_host(self):
 		if (
@@ -240,14 +177,3 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 					"MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
 				)
 			)
-
-	def warn_if_no_alert_manager(self):
-		if not cint(self.enabled) or self.environment != "Production" or get_users_with_role(MANAGER_ROLE):
-			return
-		frappe.msgprint(
-			_(
-				"No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
-			).format(MANAGER_ROLE),
-			title=_("Role not assigned"),
-			indicator="orange",
-		)

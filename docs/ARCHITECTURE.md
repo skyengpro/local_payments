@@ -3,7 +3,8 @@
 `local_payments` adds local mobile payment methods to `frappe/payments`
 gateways. MTN MoMo and Orange Money are the two gateways in the v1 scope,
 implemented in this order: MTN MoMo first, then Orange Money Local/USSD,
-once its merchant contract and technical documentation are available. The
+once its merchant contract and technical documentation are available. Nokash,
+an aggregator, gives access to both operators through a single gateway. The
 application installs and behaves the same way on any Frappe site: from one
 site to another, only the merchant credentials change. Any document or
 application that already accepts a `frappe/payments` gateway (ERPNext's
@@ -11,8 +12,9 @@ Payment Request, Web Form, LMS, business doctype) can offer these payment
 methods with no adaptation.
 
 Provider-specific detail is found in
-[`gateways/mtn-momo.md`](gateways/mtn-momo.md) and
-[`gateways/orange-money.md`](gateways/orange-money.md).
+[`gateways/mtn-momo.md`](gateways/mtn-momo.md),
+[`gateways/orange-money.md`](gateways/orange-money.md) and
+[`gateways/nokash.md`](gateways/nokash.md).
 
 ## Scope
 
@@ -20,10 +22,15 @@ Provider-specific detail is found in
 | ------------------------------------------------------------------------------ | ------------------------------------------------ |
 | MTN MoMo Collection, RequestToPay operation: request sent to the payer's phone | Orange Money Web Payment (redirect, OTP)         |
 | Orange Money Local/USSD: same principle, request sent to the payer's phone     | Refunds, disbursements, recurring payments       |
-| Automatic finalization of ERPNext Payment Requests                             | Provider choice by the payer on the payment page |
+| Nokash payin: MTN MoMo and Orange Money through one aggregator, same principle | Choice between gateways by the payer on the page |
+| Automatic finalization of ERPNext Payment Requests                             |                                                  |
 | Frappe v16                                                                    |                                                  |
 
-The data model, the lifecycle, and the payment page are common to both
+A gateway can offer several operators, as Nokash does. The payer then picks
+one on the page. That choice stays inside the session's gateway, so it is not
+the choice between gateways excluded above.
+
+The data model, the lifecycle, and the payment page are common to all
 providers. What remains specific to Orange Money — a settings doctype and
 an HTTP client — is covered in
 [`gateways/orange-money.md`](gateways/orange-money.md), which tracks the
@@ -39,9 +46,10 @@ progress of its merchant contract.
   shared by all consumers (ADR 0001).
 - **`frappe/payments` does not publish a version.** It is pinned by SHA
   on its `version-16` branch (`cca07d9f9392e2ea0e521c5975151db9e4b6c321`). MIT license.
-- **ERPNext is optional.** When it is installed, `Payment Request` does not
-  implement `on_payment_authorized` (frappe/payments#204): a successful
-  payment does not finalize it without intervention (ADR 0002).
+- **ERPNext is optional.** When it is installed, `Payment Request` implements
+  `on_payment_authorized` only from ERPNext 16.54. Before that, a successful
+  payment does not finalize it without intervention (frappe/payments#204,
+  ADR 0002).
 - **Providers are outside the site's control.** Their notifications can be
   missing, arrive several times, or be forged.
 - **Load assumption.** A few hundred payments per day per site at most. The
@@ -63,7 +71,7 @@ flowchart LR
     end
 
     subgraph LP["local_payments"]
-        SET["MTN MoMo Settings<br/>Orange Money Settings"]
+        SET["MTN MoMo Settings<br/>Orange Money Settings<br/>Nokash Settings"]
         GW["gateway.py"]
         LPAY["Local Payment<br/>+ attempts"]
         PAGE["local_payment_checkout page"]
@@ -77,6 +85,7 @@ flowchart LR
 
     OM["Orange Money API"]
     MTN["MTN MoMo API"]
+    NK["Nokash API"]
     PAYER["Payer"]
 
     CONS -- "get_payment_url" --> CTRL --> PG --> SET --> GW
@@ -90,6 +99,7 @@ flowchart LR
     REC --> PROV
     PROV --> OM
     PROV --> MTN
+    PROV --> NK
     REC -- "on_payment_authorized" --> CONS
     BR -. "doc_events" .-> PR
 ```
@@ -100,6 +110,8 @@ flowchart LR
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `providers/mtn_momo.py`                  | MTN MoMo HTTP client: token, RequestToPay, status. Normalizes responses into`ProviderResult`.                                                                                                                               | no             |
 | `providers/orange_money.py`              | Orange Money HTTP client (Local/USSD): token, initiation, status. Normalizes responses into`ProviderResult`. Written after `providers/mtn_momo.py`, once the merchant contract and technical documentation are available. | no             |
+| `providers/nokash.py`                    | Nokash HTTP client: signed payin, status. Normalizes responses into`ProviderResult`.                                                                                                                                       | no             |
+| `providers/common.py`, `providers/msisdn.py` | What the clients share: network log record, amount and status helpers, phone numbers.                                                                                                                                     | no             |
 | `lifecycle.py`                           | States and transitions for sessions and attempts, amount and currency checks, duplicate detection.                                                                                                                            | no             |
 | `gateway.py`                             | Implementation of the`frappe/payments` contract, inherited by the Settings doctypes.                                                                                                                                        | yes            |
 | `api.py`                                 | Guest endpoints: starting an attempt, status, callbacks.                                                                                                                                                                      | yes            |
@@ -118,8 +130,10 @@ modules are tested without a site, using recorded HTTP responses.
 Providers are ordinary `frappe/payments` gateways, selectable everywhere a
 gateway is already selectable. MTN MoMo, which works by pushing a request to
 the phone, sits behind a local page served by the application. Orange Money
-Local/USSD follows the same principle behind the same page. Options ruled
-out and consequences: [ADR 0001](decisions/0001-native-payments-contract.md).
+Local/USSD follows the same principle behind the same page, and so does
+Nokash, which adds the choice of operator to that page. Options ruled out and
+consequences: [ADR 0001](decisions/0001-native-payments-contract.md),
+[ADR 0003](decisions/0003-nokash-aggregator.md).
 
 ### D2. `get_payment_url()` never contacts the provider
 
@@ -152,7 +166,10 @@ that response contains.
 *Why.* The parameters of a return URL can be modified by the payer. The MTN
 callback is sent only once, with no retry, and carries no secret. A query
 authenticated by the merchant is the only signal that no one else can
-produce.
+produce. Nokash shows no authentication on this query in its sandbox: the site
+still calls a configured address over TLS, so the answer cannot be forged, but
+how it is authenticated in production must be known before going live
+([ADR 0003](decisions/0003-nokash-aggregator.md)).
 
 *Ruled out.* Confirming a payment based on the content of a callback or a
 return URL.
@@ -183,8 +200,8 @@ retry mechanism.
 
 ### D5. One settings document per merchant contract
 
-`MTN MoMo Settings`, and later `Orange Money Settings`, are not Single
-doctypes. Each document represents one merchant contract, named by
+`MTN MoMo Settings`, `Nokash Settings`, and later `Orange Money Settings`, are
+not Single doctypes. Each document represents one merchant contract, named by
 `gateway_name`. On save, it creates the `<Provider>-<gateway_name>` gateway,
 whose `gateway_controller` points back to it, then emits
 `payment_gateway_enabled`. Stripe, Braintree, and M-Pesa follow the same
@@ -209,7 +226,8 @@ A `company` field on the settings, which would duplicate
 
 `local_payments` registers `on_payment_authorized` on `Payment Request` via
 `doc_events`, only for its own gateways, and calls `set_as_paid()` once a
-session of the request is `Paid`: ERPNext is the one that creates the
+session of the request is `Paid`, unless ERPNext 16.54 or later has just done
+so in its own method: ERPNext is the one that creates the
 Payment Entry. ERPNext checks the user's rights while doing so, and the
 payer is a Guest, so that one call runs as Administrator, after the guards,
 and the caller's state is put back afterwards. When the request is
@@ -263,6 +281,7 @@ core, so the content stays typed and testable.
 | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | `MTN MoMo Settings`                   | One MTN MoMo merchant contract. Fields:[mtn-momo.md](gateways/mtn-momo.md#configuration).                                                      |
 | `Orange Money Settings`               | One Orange Money merchant contract. Fields to be defined once the documentation is received — see[orange-money.md](gateways/orange-money.md). |
+| `Nokash Settings`                     | One Nokash merchant contract. Fields:[nokash.md](gateways/nokash.md#configuration).                                                            |
 | `Local Payment`                       | A session: what a consumer asks to be paid, and its outcome.                                                                                  |
 | `Local Payment Attempt` (child table) | One attempt with the provider, its identifiers, and its latest status.                                                                        |
 
@@ -271,8 +290,8 @@ Reused without modification: `Payment Gateway` (`frappe/payments`),
 
 `Integration Request` serves as the network log: one row per attempt, with
 the initiation request as sent and the provider's answer to each send (two
-after a token renewal). Headers that carry credentials and the token request
-are never logged. Status queries are not logged there: their outcome is on
+after a token renewal). Headers and body fields that carry credentials, and the
+token request, are never logged. Status queries are not logged there: their outcome is on
 the attempt (`provider_status`), their failures in Error Log. Frappe purges
 it after 90 days by default (Log Settings). The attempt is therefore linked
 to it only by name, with no `Link`, and the durable proof (transaction
@@ -312,7 +331,7 @@ erDiagram
         Select status "Initiated, Pending, Succeeded, Failed, Expired, Unresolved, Error"
         Data provider_status "last raw status from the provider"
         Data payer_msisdn "payer's number"
-        Data provider_transaction_id "financialTransactionId for MTN"
+        Data provider_transaction_id "financialTransactionId for MTN, payin id for Nokash"
         Currency confirmed_amount
         Data confirmed_currency
         Code provider_data "provider-specific fields, written by providers/"
@@ -327,7 +346,7 @@ erDiagram
         Data integration_request "name only"
     }
     PAYMENT_GATEWAY["Payment Gateway - frappe/payments"]
-    SETTINGS["MTN MoMo Settings / Orange Money Settings"]
+    SETTINGS["MTN MoMo Settings / Orange Money Settings / Nokash Settings"]
     PGA["Payment Gateway Account - ERPNext"]
 
     LOCAL_PAYMENT ||--o{ LOCAL_PAYMENT_ATTEMPT : attempts
@@ -337,10 +356,14 @@ erDiagram
 ```
 
 `attempt_id` is the identifier transmitted to the provider: `X-Reference-Id`
-for MTN MoMo. It is generated by the application for each attempt. The
-format expected by Orange Money is still to be confirmed against its
-technical documentation. The `order_id`, if supplied by the consumer, is
-kept in `request_data` and is never transmitted to the provider.
+for MTN MoMo, `order_id` for Nokash. It is generated by the application for
+each attempt. The format expected by Orange Money is still to be confirmed
+against its technical documentation. The `order_id` supplied by a consumer is
+a different value: it is kept in `request_data` and is never transmitted to
+the provider.
+
+`provider_transaction_id` is written by a success, except for Nokash, whose
+status query needs it: the id is recorded as soon as the payin answers.
 
 ## Lifecycle
 
@@ -381,6 +404,11 @@ status check ever reports it.
 returned a final state. The attempt keeps being queried at a decreasing
 frequency for 72 hours, after which an alert is sent to
 `Local Payments Manager`. A late success is still applied.
+
+An attempt the provider can never be asked about, such as a Nokash attempt
+whose payin answer was lost, stays open until the same deadline. It then moves
+to `Unresolved` and the managers are alerted at once. No query ever goes out
+for it.
 
 ### Session
 
@@ -444,14 +472,16 @@ payment. The PayPal and Razorpay gateways also populate
 | Entry point                                                | Method    | Access                     | Effect                                                                                                             |
 | ---------------------------------------------------------- | --------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `/local_payment_checkout?token=…`                       | GET       | guest                      | Displays the session. No side effect.                                                                              |
-| `local_payments.api.start_attempt(token, msisdn)`        | POST      | guest,`rate_limit`       | Checks the number, creates an attempt and calls initiation. Returns the same state as`get_status`.               |
+| `local_payments.api.start_attempt(token, msisdn, operator)` | POST   | guest,`rate_limit`       | Checks the number and the operator, if the gateway offers a choice, creates an attempt and calls initiation. Returns the same state as`get_status`. |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
 | `Local Payment` form: Retry authorization | button, POST | `Local Payments Manager`, System Manager | Runs the authorization of a `Paid` session again, when it is `Failed` or `Pending` for longer than 5 minutes. Answers at once if one is already running. The try counts like any other. |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
-documentation is received.
+documentation is received. A Nokash callback is planned for production, where
+Nokash sends it: as with MTN, it will only queue `reconcile()`. It does not
+exist yet, so Nokash outcomes are found by polling.
 
 ## Scheduled tasks
 
@@ -478,7 +508,10 @@ Administrator. They are desk notifications of type `Alert`, which Frappe never e
 Error Log keeps the alert text.
 
 `reconcile()` raises some alerts itself, once and with no retry: duplicate, amount mismatch, payment on a
-`Void` session, and the first authorization failure that needs a person. That last one fires on any error
+`Void` session, an attempt that reached its deadline with nothing to query the provider with, and the first
+authorization failure that needs a person. The attempt alert fires even on a `Paid` session, since the payer
+may have been charged twice, and it is the one exception to "no retry": if it fails to go out, the attempt's
+next check sends it. The authorization one fires on any error
 except a lock, deadlock, concurrent edit or read-only database, which the backoff retries alone. It is sent
 once per session; the retries and the daily "failed N times" alert still follow.
 
@@ -486,7 +519,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
 
 - Merchant credentials are stored in `Password` fields, encrypted with the
   site's `encryption_key`. The Settings doctypes are restricted to System
-  Manager.
+  Manager. Nokash takes its keys in the request body: they are removed, with
+  the signature, from what is logged.
 - `Local Payments Manager`, a role created by the application, and System
   Manager can read, report on and export `Local Payment`, and retry an
   authorization. Neither can create, edit or delete a session. The role
@@ -501,7 +535,7 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - Guest access to a session only ever goes through its `token`. The
   sequential name is never exposed. The token is hidden in the desk, in
   reports and in exports. The page shows only the title, the amount, the
-  currency, and the provider.
+  currency, the provider, and the operators on offer.
 - The payer's phone number is personal data, visible only to the roles
   above. Errors on the guest endpoints are logged without the traceback's
   variables, which hold the number. An unexpected server error reaches the
@@ -524,6 +558,9 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - A callback for an unknown attempt is ignored, with no outgoing call.
 - A phone number outside the configured country's format is rejected
   before any call.
+- An operator the gateway does not offer is rejected before any call.
+- A currency other than XAF on a Nokash gateway, which has no currency to
+  configure.
 - An attempt on a `Paid` or `Void` session, or through a disabled gateway,
   is rejected.
 - A new attempt is rejected as long as another one is `Initiated` or
@@ -562,8 +599,9 @@ Nothing else varies from one site to another.
   configurable. A value that is too short produces `Unresolved` attempts,
   never a lost payment.
 - **A session is tied to a single gateway.** The payer cannot switch
-  providers on the page; the consumer must offer each gateway separately.
-  This is a limitation of the `frappe/payments` contract.
+  gateways on the page, only pick among the operators of this one; the
+  consumer must offer each gateway separately. This is a limitation of the
+  `frappe/payments` contract.
 - **The Payment Entry created by ERPNext does not carry the provider's
   transaction identifier.** It references the Payment Request, which is
   itself referenced by the session that carries that identifier.
@@ -585,6 +623,18 @@ Nothing else varies from one site to another.
 - **Without `host_name`, payment links follow the request's host.** The
   checkout URL and the exit URL come from Frappe's `get_url()`, which uses
   the `Host` header when `host_name` is not set.
+- **A Nokash attempt whose payin answer was lost cannot be settled here.** Its
+  status query needs the id Nokash returned. The payer may have been charged,
+  the managers are alerted, and support checks with Nokash. Meanwhile the
+  payer's page keeps waiting and the consumer has to send a new link.
+- **Nokash confirms the amount only.** Its status answer has no currency: the
+  client reports XAF, the only currency of the contract
+  ([ADR 0003](decisions/0003-nokash-aggregator.md)).
+- **A status query that keeps failing settles nothing.** A failed check says
+  nothing about the payment: the error is logged, the next check is scheduled,
+  and at its deadline the attempt moves to `Unresolved`, so the payer can try
+  again and the 72-hour alert applies. A Nokash `404` keeps failing this way,
+  where an MTN `404` ends the attempt.
 - **The Orange Money Local/USSD technical contract is not yet known.**
   Endpoints, the status schema, and the format of the transmitted
   identifier depend on the documentation delivered when the merchant
@@ -597,5 +647,8 @@ Nothing else varies from one site to another.
   contract.
 - [`gateways/orange-money.md`](gateways/orange-money.md): status of the
   Orange Money work and items to obtain before implementation.
+- [`gateways/nokash.md`](gateways/nokash.md): Nokash payin contract and points
+  to confirm before production.
 - [`decisions/0001-native-payments-contract.md`](decisions/0001-native-payments-contract.md)
 - [`decisions/0002-payment-request-authorization-hook.md`](decisions/0002-payment-request-authorization-hook.md)
+- [`decisions/0003-nokash-aggregator.md`](decisions/0003-nokash-aggregator.md)

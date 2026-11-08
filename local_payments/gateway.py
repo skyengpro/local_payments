@@ -3,28 +3,30 @@
 
 """The frappe/payments contract shared by every Settings doctype of this app.
 
-A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name`, implements `check_status` and
-`initiate`, and has the fields `gateway_name`, `enabled`, `currency`, `msisdn_prefix`,
+A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name` and `initiation_name`, implements
+`check_status` and `initiate`, and has the attributes `gateway_name`, `enabled`, `currency`, `msisdn_prefix`,
 `msisdn_national_length` and `pending_timeout_minutes`. Nothing provider-specific belongs in this file.
 """
 
 from dataclasses import dataclass
 from math import isfinite
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 import frappe
 from frappe import _
 from frappe.utils import call_hook_method, cint, flt, get_url
+from frappe.utils.user import get_users_with_role
 from payments.utils import create_payment_gateway
 
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
+from local_payments.providers.common import Exchange
 from local_payments.providers.msisdn import normalize_msisdn
 
 CHECKOUT_PAGE = "local_payment_checkout"
 
 # The Settings doctypes of this app's gateways. A Payment Gateway is ours if its gateway_settings is one of them.
-SETTINGS_DOCTYPES = ("MTN MoMo Settings", "Orange Money Settings")
+SETTINGS_DOCTYPES = ("MTN MoMo Settings", "Orange Money Settings", "Nokash Settings")
 
 # ISO 4217 currencies with no minor unit. Frappe's Currency records can't be used for this:
 # XAF is stored there with 100 fraction units.
@@ -36,13 +38,31 @@ ZERO_DECIMAL_CURRENCIES = frozenset(
 # Consumer fields copied onto the session. Everything else only lives in request_data.
 SESSION_FIELDS = ("title", "description", "payer_name", "payer_email", "redirect_to")
 
+NETWORK_LOG_SAVEPOINT = "lp_network_log"
+
 
 @dataclass(frozen=True)
 class Initiated:
-	"""What starting an attempt did: the attempt's status, and the Integration Request of the exchange."""
+	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id."""
 
 	status: str
 	integration_request: str | None = None
+	transaction_id: str | None = None
+
+
+def log_error(title: str, session_name: str | None = None, detail: str | None = None) -> None:
+	"""Log the current exception without its frames' variables, which can hold the payer's number.
+
+	Queued in Redis and inserted later: Frappe rolls back a failed request, and every GET request.
+	"""
+	traceback = frappe.get_traceback()
+	frappe.log_error(
+		title=title,
+		message=f"{detail}\n\n{traceback}" if detail else traceback,
+		reference_doctype="Local Payment",
+		reference_name=session_name,
+		defer_insert=True,
+	)
 
 
 def validate_amount_for_currency(amount, currency: str) -> None:
@@ -61,6 +81,8 @@ class LocalPaymentGateway:
 	"""
 
 	provider_name: str
+	# How the network log names the initiation call.
+	initiation_name: str
 
 	@property
 	def payment_gateway_name(self) -> str:
@@ -75,12 +97,21 @@ class LocalPaymentGateway:
 		"""Ask the provider about one attempt. Each provider's Settings doctype implements this."""
 		raise NotImplementedError
 
-	def initiate(self, attempt_id: str, session, msisdn: str) -> Initiated:
+	def initiate(self, attempt_id: str, session, msisdn: str, provider_data: dict) -> Initiated:
 		"""Send the payment request for an attempt already saved as Initiated.
 
-		Each provider's Settings doctype implements this. `msisdn` comes from `payer_msisdn()`.
+		Each provider's Settings doctype implements this. `msisdn` comes from `payer_msisdn()`, and
+		`provider_data` from `attempt_data()`.
 		"""
 		raise NotImplementedError
+
+	def payer_operators(self) -> list[dict]:
+		"""The operators the payer picks from on the page, as {value, label}. Empty when there is no choice."""
+		return []
+
+	def attempt_data(self, operator: str | None) -> dict:
+		"""What to keep in a new attempt's provider_data. Raises a ValidationError for a refused operator."""
+		return {}
 
 	def payer_msisdn(self, number) -> str:
 		"""The payer's number as providers expect it. Raises a ValidationError the page shows under the field."""
@@ -91,6 +122,91 @@ class LocalPaymentGateway:
 				_("Enter your mobile money number: {0} digits, with or without +{1}.").format(length, prefix)
 			)
 		return msisdn
+
+	def validate_gateway_name_unchanged(self):
+		# Without this, Frappe would silently put the document name back into gateway_name.
+		if not self.is_new() and self.gateway_name != self.name:
+			frappe.throw(
+				_("Gateway Name cannot be changed once saved."), exc=frappe.CannotChangeConstantError
+			)
+
+	def validate_api_base_url(self):
+		# validate() runs before Frappe's mandatory check, which reports a missing value itself.
+		if not self.api_base_url:
+			return
+		self.api_base_url = self.api_base_url.strip()
+		# Merchant credentials are sent to this URL.
+		url = urlsplit(self.api_base_url)
+		if url.scheme != "https" or not url.hostname:
+			frappe.throw(_("API Base URL must be an https:// address."))
+
+	def set_pending_timeout(self):
+		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.
+		timeout = cint(self.pending_timeout_minutes)
+		if timeout < 0:
+			frappe.throw(_("Pending Timeout (Minutes) cannot be negative."))
+		if timeout == 0:
+			self.pending_timeout_minutes = cint(self.meta.get_field("pending_timeout_minutes").default)
+
+	def warn_if_no_alert_manager(self):
+		if not cint(self.enabled) or get_users_with_role(rc.MANAGER_ROLE):
+			return
+		frappe.msgprint(
+			_(
+				"No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
+			).format(rc.MANAGER_ROLE),
+			title=_("Role not assigned"),
+			indicator="orange",
+		)
+
+	def log_refusal(self, attempt_id: str, session_name: str, detail: str) -> None:
+		# The detail names the outcome and the provider's codes only, never the payer's number.
+		frappe.log_error(
+			title=f"{self.provider_name} payment request refused",
+			message=f"Attempt {attempt_id}: {detail}",
+			reference_doctype="Local Payment",
+			reference_name=session_name,
+		)
+
+	def log_exchanges(
+		self, attempt_id: str, session_name: str, exchanges: list[Exchange], taken_in: bool
+	) -> str | None:
+		"""One Integration Request per attempt: the request as sent, then the answer to each send.
+
+		A log that can't be saved is reported and skipped: it must not cost what the provider answered.
+		"""
+		if not exchanges:
+			return None
+		request = exchanges[0]
+		log = frappe.get_doc(
+			{
+				"doctype": "Integration Request",
+				"integration_request_service": self.provider_name,
+				"request_description": self.initiation_name,
+				"request_id": attempt_id,
+				"reference_doctype": "Local Payment",
+				"reference_docname": session_name,
+				"url": request.url,
+				"request_headers": frappe.as_json(request.request_headers),
+				"data": frappe.as_json(request.request_body),
+				"output": frappe.as_json(
+					[
+						{"status_code": sent.status_code, "body": sent.response_body, "error": sent.error}
+						for sent in exchanges
+					]
+				),
+				"status": "Completed" if taken_in else "Failed",
+			}
+		)
+		frappe.db.savepoint(NETWORK_LOG_SAVEPOINT)
+		try:
+			# Not create_request_log(), which commits. The payer is a Guest, and only System Manager may create one.
+			log.insert(ignore_permissions=True)
+		except Exception:
+			frappe.db.rollback(save_point=NETWORK_LOG_SAVEPOINT)
+			log_error(f"{self.provider_name} network log failed", session_name)
+			return None
+		return log.name
 
 	def validate_transaction_currency(self, currency):
 		if currency != self.currency:

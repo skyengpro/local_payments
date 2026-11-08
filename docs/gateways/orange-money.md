@@ -16,6 +16,10 @@ parties are not enough to write a client whose behavior can be guaranteed
 in production, and Orange Money in Cameroon has recently forced a change of
 credentials and endpoints on its integrators.
 
+Orange Money can also be reached through Nokash, without this contract: see
+[`nokash.md`](nokash.md). That does not lift anything listed here for the
+direct integration.
+
 ## Collection modes
 
 Orange offers two families of API for merchant collection.

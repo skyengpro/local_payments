@@ -12,7 +12,6 @@ import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
 from enum import StrEnum
 from typing import Protocol
 from urllib.parse import quote
@@ -21,6 +20,16 @@ import requests
 
 from local_payments import lifecycle as lc
 from local_payments.lifecycle import ProviderResult
+from local_payments.providers.common import (
+	DEFAULT_TIMEOUT,
+	RESPONSE_LOG_MAX_LENGTH,
+	Exchange,
+	InvalidRequest,
+	as_text,
+	describe,
+	json_body,
+	whole_amount,
+)
 from local_payments.providers.msisdn import normalize_msisdn
 
 # The sandbox only accepts EUR, whatever the contract's currency.
@@ -28,21 +37,11 @@ SANDBOX_CURRENCY = "EUR"
 # Seconds shaved off expires_in, so a cached token is never used right at its expiry.
 TOKEN_EXPIRY_MARGIN = 60
 TEXT_MAX_LENGTH = 160
-# Length of the provider_status column on the attempt.
-PROVIDER_STATUS_MAX_LENGTH = 140
-# Enough for MTN's error code and message. A proxy's HTML error page is cut.
-RESPONSE_LOG_MAX_LENGTH = 2000
-# Connect, read, in seconds. Just over a multiple of 3 s, TCP's retransmission window, as requests advises.
-DEFAULT_TIMEOUT = (6.05, 15)
 
 STATUSES = {"PENDING": lc.PENDING, "SUCCESSFUL": lc.SUCCEEDED, "FAILED": lc.FAILED}
 
 # MTN does not publish which characters it refuses in payerMessage and payeeNote, so only these pass.
 REFUSED_TEXT = re.compile(r"[^A-Za-z0-9 .,\-_:/]")
-
-
-class InvalidRequest(ValueError):
-	"""Refused locally, before any call to MTN."""
 
 
 class ErrorKind(StrEnum):
@@ -77,23 +76,6 @@ class Initiation:
 	outcome: InitiationOutcome
 	http_status: int | None = None
 	code: str | None = None
-
-
-@dataclass(frozen=True)
-class Exchange:
-	"""One API call as sent and as answered, for the caller's network log.
-
-	The headers that carry credentials (Authorization, Ocp-Apim-Subscription-Key) are never in it.
-	"""
-
-	method: str
-	url: str
-	request_headers: dict
-	request_body: dict | None
-	status_code: int | None = None
-	response_body: str | None = None
-	# The exception's name when no response came back, e.g. "ReadTimeout".
-	error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -161,7 +143,8 @@ class MtnMomoClient:
 		request. Raises InvalidRequest, before any call, for a bad number or amount.
 		"""
 		body = {
-			"amount": format_amount(amount),
+			# A string of digits, as MTN expects it.
+			"amount": str(whole_amount(amount)),
 			"currency": SANDBOX_CURRENCY if self.config.sandbox else self.config.currency,
 			"externalId": external_id,
 			"payer": {"partyIdType": "MSISDN", "partyId": self.validate_msisdn(msisdn)},
@@ -330,17 +313,6 @@ class MtnMomoClient:
 		return self.config.api_base_url.rstrip("/") + path
 
 
-def format_amount(amount) -> str:
-	"""A whole, positive amount as MTN expects it: a string of digits. Never rounded."""
-	try:
-		value = Decimal(str(amount))
-	except InvalidOperation:
-		raise InvalidRequest("The amount is not a number.")
-	if not value.is_finite() or value <= 0 or value != value.to_integral_value():
-		raise InvalidRequest("MTN MoMo amounts must be whole and positive.")
-	return str(int(value))
-
-
 def clean_text(text: str | None) -> str:
 	"""Accents dropped, other refused characters replaced by spaces, at most 160 characters."""
 	decomposed = unicodedata.normalize("NFKD", text or "")
@@ -350,12 +322,7 @@ def clean_text(text: str | None) -> str:
 
 def error_code(response) -> str | None:
 	"""MTN's error code from an error body ({"code": ...}, or {"error": ...} for the token)."""
-	try:
-		payload = response.json()
-	except ValueError:
-		return None
-	if not isinstance(payload, dict):
-		return None
+	payload = json_body(response)
 	return as_text(payload.get("code") or payload.get("error"))
 
 
@@ -364,12 +331,3 @@ def reason_code(reason) -> str | None:
 	if isinstance(reason, dict):
 		return as_text(reason.get("code"))
 	return as_text(reason)
-
-
-def describe(status: str, reason: str | None) -> str:
-	return (f"{status}: {reason}" if reason else status)[:PROVIDER_STATUS_MAX_LENGTH]
-
-
-def as_text(value) -> str | None:
-	# MTN's examples send some string fields as numbers.
-	return None if value is None or value == "" else str(value)

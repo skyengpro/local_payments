@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-10-07 18:00+0000\n"
+"POT-Creation-Date: 2026-11-06 17:50+0000\n"
 "PO-Revision-Date: 2026-09-24 09:58+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language: fr\n"
@@ -18,12 +18,14 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.16.0\n"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:215
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:160
 msgid "A Sandbox gateway must use {0}."
 msgstr "Une passerelle en Sandbox doit utiliser {0}."
 
 #. Description of the 'Enabled' (Check) field in DocType 'MTN MoMo Settings'
+#. Description of the 'Enabled' (Check) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "A disabled gateway refuses new payments."
 msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 
@@ -32,7 +34,7 @@ msgstr "Une passerelle désactivée refuse les nouveaux paiements."
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr "Un paiement est en cours de traitement pour cette demande. Réessayez dans un instant."
 
-#: local_payments/api.py:177
+#: local_payments/api.py:190
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr "Une demande de paiement attend déjà votre validation sur votre téléphone."
 
@@ -47,11 +49,13 @@ msgid "API"
 msgstr "API"
 
 #. Label of the api_base_url (Data) field in DocType 'MTN MoMo Settings'
+#. Label of the api_base_url (Data) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "API Base URL"
 msgstr "URL de base de l'API"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:212
+#: local_payments/gateway.py:141
 msgid "API Base URL must be an https:// address."
 msgstr "L'URL de base de l'API doit être une adresse https://."
 
@@ -64,6 +68,20 @@ msgstr "Clé API"
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "API User"
 msgstr "Utilisateur API"
+
+#. Label of the accept_mtn_momo (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Accept MTN MoMo"
+msgstr "Accepter MTN MoMo"
+
+#. Label of the accept_orange_money (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Accept Orange Money"
+msgstr "Accepter Orange Money"
+
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:116
+msgid "Accept at least one operator."
+msgstr "Acceptez au moins un opérateur."
 
 #. Label of the alerted (Check) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
@@ -81,7 +99,7 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:52
+#: local_payments/gateway.py:72
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:58
 msgid "Amount must be strictly positive."
 msgstr ""
@@ -92,9 +110,14 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:389
+#: local_payments/reconcile.py:396
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
+
+#. Label of the app_space_key (Password) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "App Key"
+msgstr "Clé d'application"
 
 #. Description of the 'Request Data' (Code) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
@@ -112,7 +135,11 @@ msgstr "Demander à MTN de rappeler le site quand le payeur répond."
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:390
+#: local_payments/reconcile.py:403
+msgid "Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
+msgstr "La tentative {1} sur {0} n'a reçu aucune réponse du fournisseur et ne peut pas être vérifiée. Le payeur a peut-être été débité : interrogez le fournisseur."
+
+#: local_payments/reconcile.py:397
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -168,13 +195,15 @@ msgstr "Autorisation effectuée."
 msgid "Authorization failed. See the error on the session."
 msgstr "L'autorisation a échoué. Voir l'erreur sur la session."
 
-#: local_payments/templates/pages/local_payment_checkout.html:46
+#: local_payments/templates/pages/local_payment_checkout.html:60
 msgid "Cancelled"
 msgstr "Annulé"
 
 #. Description of the 'Gateway Name' (Data) field in DocType 'MTN MoMo
 #. Settings'
+#. Description of the 'Gateway Name' (Data) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Cannot be changed once saved: the payment gateway is named after it."
 msgstr "Non modifiable après l'enregistrement : la passerelle de paiement porte ce nom."
 
@@ -182,6 +211,11 @@ msgstr "Non modifiable après l'enregistrement : la passerelle de paiement porte
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Check Count"
 msgstr ""
+
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:93
+#: local_payments/templates/pages/local_payment_checkout.html:26
+msgid "Choose your mobile money operator."
+msgstr "Choisissez votre opérateur mobile money."
 
 #. Description of the 'Subscription Key' (Password) field in DocType 'MTN MoMo
 #. Settings'
@@ -213,7 +247,7 @@ msgstr ""
 msgid "Column Break Payer"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:36
+#: local_payments/templates/pages/local_payment_checkout.html:50
 msgid "Confirm the payment on your phone. This page updates on its own."
 msgstr "Confirmez le paiement sur votre téléphone. Cette page se met à jour toute seule."
 
@@ -229,7 +263,7 @@ msgstr ""
 msgid "Confirmed Currency"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:44
+#: local_payments/templates/pages/local_payment_checkout.html:58
 msgid "Continue"
 msgstr "Continuer"
 
@@ -269,14 +303,16 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:388
+#: local_payments/reconcile.py:395
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
 #. Label of the enabled (Check) field in DocType 'Local Payments Test Settings'
 #. Label of the enabled (Check) field in DocType 'MTN MoMo Settings'
+#. Label of the enabled (Check) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Enabled"
 msgstr ""
 
@@ -284,7 +320,7 @@ msgstr ""
 msgid "Enter your mobile money number."
 msgstr "Saisissez votre numéro mobile money."
 
-#: local_payments/gateway.py:91
+#: local_payments/gateway.py:122
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr "Saisissez votre numéro mobile money : {0} chiffres, avec ou sans +{1}."
 
@@ -318,12 +354,14 @@ msgstr ""
 #. Label of the gateway_name (Data) field in DocType 'Local Payments Test
 #. Settings'
 #. Label of the gateway_name (Data) field in DocType 'MTN MoMo Settings'
+#. Label of the gateway_name (Data) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:201
+#: local_payments/gateway.py:130
 msgid "Gateway Name cannot be changed once saved."
 msgstr "Le nom de la passerelle ne peut plus être modifié après l'enregistrement."
 
@@ -334,7 +372,10 @@ msgstr ""
 
 #. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType 'MTN
 #. MoMo Settings'
+#. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType
+#. 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "How long a request may stay pending before the attempt is marked Unresolved."
 msgstr "Durée pendant laquelle une demande peut rester en attente avant que la tentative passe à Non résolue."
 
@@ -354,6 +395,11 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Integration Request"
 msgstr ""
+
+#. Label of the i_space_key (Password) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Integrator Key"
+msgstr "Clé intégrateur"
 
 #. Label of the last_checked_on (Datetime) field in DocType 'Local Payment
 #. Attempt'
@@ -390,7 +436,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr "Longueur du numéro national (MSISDN)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:221
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:166
 msgid "MSISDN National Length must be greater than zero."
 msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro."
 
@@ -402,7 +448,7 @@ msgstr "La longueur du numéro national (MSISDN) doit être supérieure à zéro
 msgid "MSISDN Prefix"
 msgstr "Préfixe MSISDN"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:219
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:164
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 
@@ -411,7 +457,11 @@ msgstr "Le préfixe MSISDN ne doit contenir que des chiffres, sans + ni 00."
 msgid "MTN MoMo Settings"
 msgstr "Paramètres MTN MoMo"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:239
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:83
+msgid "MTN Mobile Money"
+msgstr "MTN Mobile Money"
+
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:176
 msgid "MTN can only call back an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
 msgstr "MTN ne rappelle qu'une adresse https://. Renseignez host_name dans la configuration du site avec l'adresse publique https:// du site, ou décochez Envoyer le rappel."
 
@@ -449,9 +499,18 @@ msgstr "Messages"
 msgid "Minimal Settings doctype used only by the tests of gateway.py. Not a real provider."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:27
+#: local_payments/templates/pages/local_payment_checkout.html:28
 msgid "Mobile money number"
 msgstr "Numéro mobile money"
+
+#: local_payments/templates/pages/local_payment_checkout.html:35
+msgid "Mobile money operator"
+msgstr "Opérateur mobile money"
+
+#. Description of the 'API Base URL' (Data) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Must be an https:// address: the keys are sent to it."
+msgstr "Doit être une adresse https:// : les clés y sont envoyées."
 
 #. Description of the 'Integration Request' (Data) field in DocType 'Local
 #. Payment Attempt'
@@ -465,19 +524,38 @@ msgstr ""
 msgid "Next Check On"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:248
+#: local_payments/gateway.py:155
 msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 msgstr "Aucun utilisateur actif n'a le rôle {0}. Les alertes de paiement iront aux System Managers, ou à Administrator s'il n'y en a aucun. Attribuez ce rôle à au moins une personne."
+
+#. Label of the api_section (Section Break) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Nokash API"
+msgstr "API Nokash"
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Nokash Settings"
+msgstr "Paramètres Nokash"
 
 #. Description of a DocType
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "One MTN MoMo Collection merchant contract. Saving it creates the MTN MoMo-<Gateway Name> payment gateway."
 msgstr "Un contrat marchand MTN MoMo Collection. L'enregistrer crée la passerelle de paiement MTN MoMo-<Nom de la passerelle>."
 
+#. Description of a DocType
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "One Nokash merchant contract. Saving it creates the Nokash-<Gateway Name> payment gateway. Payments are in XAF only."
+msgstr "Un contrat marchand Nokash. L'enregistrer crée la passerelle de paiement Nokash-<Nom de la passerelle>. Les paiements se font uniquement en XAF."
+
 #. Option for the 'Status' (Select) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Open"
 msgstr ""
+
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:83
+msgid "Orange Money"
+msgstr "Orange Money"
 
 #. Label of the section_break_outcome (Section Break) field in DocType 'Local
 #. Payment'
@@ -500,7 +578,7 @@ msgstr ""
 msgid "Paid On"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:32
+#: local_payments/templates/pages/local_payment_checkout.html:46
 msgid "Pay"
 msgstr "Payer"
 
@@ -513,8 +591,10 @@ msgstr "Note du bénéficiaire"
 #. Payment'
 #. Label of the payer_section (Section Break) field in DocType 'MTN MoMo
 #. Settings'
+#. Label of the payer_section (Section Break) field in DocType 'Nokash
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Payer"
 msgstr ""
 
@@ -556,19 +636,19 @@ msgstr "La demande de paiement {0} n'est pas validée : elle ne peut pas être m
 msgid "Payment by {0}"
 msgstr "Paiement par {0}"
 
-#: local_payments/reconcile.py:394
+#: local_payments/reconcile.py:401
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
-#: local_payments/reconcile.py:391
+#: local_payments/reconcile.py:398
 msgid "Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
 msgstr "Paiement reçu sur {0}, mais son autorisation a échoué. Corrigez la cause indiquée sur la session, puis relancez."
 
-#: local_payments/templates/pages/local_payment_checkout.html:43
+#: local_payments/templates/pages/local_payment_checkout.html:57
 msgid "Payment received"
 msgstr "Paiement reçu"
 
-#: local_payments/reconcile.py:395
+#: local_payments/reconcile.py:402
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
 
@@ -583,12 +663,14 @@ msgstr ""
 #. Test Settings'
 #. Label of the pending_timeout_minutes (Int) field in DocType 'MTN MoMo
 #. Settings'
+#. Label of the pending_timeout_minutes (Int) field in DocType 'Nokash
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Pending Timeout (Minutes)"
 msgstr "Délai d'attente (minutes)"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:227
+#: local_payments/gateway.py:147
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr "Le délai d'attente (minutes) ne peut pas être négatif."
 
@@ -650,7 +732,7 @@ msgstr ""
 msgid "Retry authorization"
 msgstr "Relancer l'autorisation"
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:251
+#: local_payments/gateway.py:158
 msgid "Role not assigned"
 msgstr "Rôle non attribué"
 
@@ -669,6 +751,12 @@ msgstr "Envoyer le rappel"
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Sent as X-Target-Environment. In production, the value provided by MTN."
 msgstr "Envoyé dans X-Target-Environment. En production, la valeur fournie par MTN."
+
+#. Description of the 'Integrator Key' (Password) field in DocType 'Nokash
+#. Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Sent to Nokash and used to sign each payment request."
+msgstr "Envoyée à Nokash et utilisée pour signer chaque demande de paiement."
 
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:69
 msgid "Sessions are created by the payment flow only."
@@ -718,6 +806,7 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "System Manager"
 msgstr ""
 
@@ -731,7 +820,7 @@ msgstr "Environnement cible"
 msgid "The only currency this gateway accepts."
 msgstr "La seule devise acceptée par cette passerelle."
 
-#: local_payments/gateway.py:109
+#: local_payments/gateway.py:225
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
@@ -739,23 +828,23 @@ msgstr ""
 msgid "The payment service is not responding at the moment. Please try again in a few minutes."
 msgstr "Le service de paiement ne répond pas pour le moment. Veuillez réessayer dans quelques minutes."
 
-#: local_payments/api.py:203
+#: local_payments/api.py:217
 msgid "This payment can no longer be made from this page."
 msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 
-#: local_payments/api.py:147
+#: local_payments/api.py:153
 msgid "This payment method is not available at the moment."
 msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
 
-#: local_payments/gateway.py:98
+#: local_payments/gateway.py:214
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:301
+#: local_payments/api.py:303
 msgid "This payment page is no longer available."
 msgstr "Cette page de paiement n'est plus disponible."
 
-#: local_payments/templates/pages/local_payment_checkout.html:47
+#: local_payments/templates/pages/local_payment_checkout.html:61
 msgid "This payment request was cancelled. Ask the sender for a new link."
 msgstr "Cette demande de paiement a été annulée. Demandez un nouveau lien à l'expéditeur."
 
@@ -785,7 +874,7 @@ msgstr ""
 msgid "Void"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:40
+#: local_payments/templates/pages/local_payment_checkout.html:54
 msgid "We are still waiting for an answer. Reload this page to check again."
 msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifier à nouveau."
 
@@ -795,11 +884,17 @@ msgstr "Nous attendons toujours une réponse. Rechargez cette page pour vérifie
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
 
-#: local_payments/api.py:138
+#. Description of the 'Accept MTN MoMo' (Check) field in DocType 'Nokash
+#. Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "With both operators checked, the payer chooses on the payment page."
+msgstr "Si les deux opérateurs sont cochés, le payeur choisit sur la page de paiement."
+
+#: local_payments/api.py:144
 msgid "Your payment could not be started. Please try again in a moment."
 msgstr "Votre paiement n'a pas pu être lancé. Veuillez réessayer dans un instant."
 
-#: local_payments/gateway.py:54
+#: local_payments/gateway.py:74
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
 

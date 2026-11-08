@@ -86,7 +86,7 @@ leaves the attempt status to its caller.
 | `FAILED` | `Failed` | Whatever the reason. `provider_status` keeps it, e.g. `FAILED: NOT_ENOUGH_FUNDS`. |
 | `404` on status | `Failed` | The request was not created. `provider_status` is `404: RESOURCE_NOT_FOUND`. |
 | `PENDING` after `pending_timeout_minutes` | `Unresolved` | Queried thereafter at decreasing frequency. |
-| Any other `status` value, or a body that is not JSON | No change | Reported as an error, logged, queried again later. |
+| Any other `status` value, or a body that is not JSON | No change, then `Unresolved` at the deadline | Reported as an error, logged, queried again later. |
 
 `reason` is read both as a plain code (`"NOT_ENOUGH_FUNDS"`) and as an
 object (`{"code": ..., "message": ...}`): MTN documents both. The code is
@@ -205,7 +205,7 @@ sequenceDiagram
 | `404` on status | Unknown reference: the request did not go through | Attempt `Failed`. |
 | `409` | `X-Reference-Id` already used | Move to status polling. |
 | `5xx` or timeout | Unavailability | Attempt `Initiated`, query scheduled. |
-| `400`, `401`, `5xx` or timeout on status | The query failed, not the payment | No change to the attempt. The error goes to the Error Log and the attempt is queried again later. |
+| `400`, `401`, `5xx` or timeout on status | The query failed, not the payment | No change to the attempt until its deadline, then `Unresolved`. The error goes to the Error Log and the attempt is queried again later. |
 
 ## Points to confirm before production
 

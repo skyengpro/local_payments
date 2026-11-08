@@ -98,6 +98,8 @@ jobs:
           #
           bench get-app payments --branch version-16
           # pinned SHA of payments version-16: reproducible, known rollback point
+          # get-app clones shallow, so the pin is gone from the clone once version-16 moves on.
+          git -C apps/payments fetch --depth 1 https://github.com/frappe/payments cca07d9f9392e2ea0e521c5975151db9e4b6c321
           git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
           if [ "${{ matrix.erpnext }}" = "true" ]; then
             bench get-app erpnext --branch version-16
@@ -122,7 +124,7 @@ jobs:
         working-directory: /home/runner/frappe-bench
         run: |
           bench --site test_site set-config allow_tests true
-          bench --site test_site run-tests --app local_payments --coverage
+          bench --site test_site run-tests --app local_payments
         env:
           TYPE: server
 
@@ -135,9 +137,3 @@ jobs:
             echo "== $f =="
             cat "$f"
           done
-      # - name: Upload coverage
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: coverage
-      #     path: /home/runner/frappe-bench/sites/coverage.xml
-      #     retention-days: 14

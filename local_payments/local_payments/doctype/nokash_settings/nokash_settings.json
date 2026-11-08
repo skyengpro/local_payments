@@ -1,0 +1,124 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:gateway_name",
+ "creation": "2026-11-06 00:00:00.000000",
+ "description": "One Nokash merchant contract. Saving it creates the Nokash-<Gateway Name> payment gateway. Payments are in XAF only.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "gateway_name",
+  "enabled",
+  "api_section",
+  "api_base_url",
+  "column_break_api",
+  "i_space_key",
+  "app_space_key",
+  "payer_section",
+  "accept_mtn_momo",
+  "accept_orange_money",
+  "column_break_payer",
+  "pending_timeout_minutes"
+ ],
+ "fields": [
+  {
+   "description": "Cannot be changed once saved: the payment gateway is named after it.",
+   "fieldname": "gateway_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Gateway Name",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "A disabled gateway refuses new payments.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "api_section",
+   "fieldtype": "Section Break",
+   "label": "Nokash API"
+  },
+  {
+   "default": "https://api.nokash.app",
+   "description": "Must be an https:// address: the keys are sent to it.",
+   "fieldname": "api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_api",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Sent to Nokash and used to sign each payment request.",
+   "fieldname": "i_space_key",
+   "fieldtype": "Password",
+   "label": "Integrator Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "app_space_key",
+   "fieldtype": "Password",
+   "label": "App Key",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payer_section",
+   "fieldtype": "Section Break",
+   "label": "Payer"
+  },
+  {
+   "default": "1",
+   "description": "With both operators checked, the payer chooses on the payment page.",
+   "fieldname": "accept_mtn_momo",
+   "fieldtype": "Check",
+   "label": "Accept MTN MoMo"
+  },
+  {
+   "default": "1",
+   "fieldname": "accept_orange_money",
+   "fieldtype": "Check",
+   "label": "Accept Orange Money"
+  },
+  {
+   "fieldname": "column_break_payer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "description": "How long a request may stay pending before the attempt is marked Unresolved.",
+   "fieldname": "pending_timeout_minutes",
+   "fieldtype": "Int",
+   "label": "Pending Timeout (Minutes)"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-06 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Local Payments",
+ "name": "Nokash Settings",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
