@@ -205,6 +205,10 @@ msgstr ""
 msgid "Cannot be changed once saved: the payment gateway is named after it."
 msgstr ""
 
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Change operator"
+msgstr ""
+
 #. Label of the check_count (Int) field in DocType 'Local Payment Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
 msgid "Check Count"
@@ -705,6 +709,10 @@ msgstr ""
 msgid "Provider-specific fields, written by providers/ only."
 msgstr ""
 
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Recent numbers"
+msgstr ""
+
 #. Label of the redirect_to (Small Text) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Redirect To"
@@ -744,6 +752,10 @@ msgstr ""
 #. Label of the send_callback (Check) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Send Callback"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Sending..."
 msgstr ""
 
 #. Description of the 'Target Environment' (Data) field in DocType 'MTN MoMo
@@ -901,4 +913,3 @@ msgstr ""
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:83
 msgid "{0} is set by the payment flow and cannot be edited."
 msgstr ""
-

@@ -24,6 +24,7 @@ from local_payments.providers.common import Exchange
 from local_payments.providers.msisdn import normalize_msisdn
 
 CHECKOUT_PAGE = "local_payment_checkout"
+MTN_MOMO_ICON = "/assets/local_payments/images/operators/mtn_momo.png"
 
 # The Settings doctypes of this app's gateways. A Payment Gateway is ours if its gateway_settings is one of them.
 SETTINGS_DOCTYPES = ("MTN MoMo Settings", "Orange Money Settings", "Nokash Settings")
@@ -106,8 +107,12 @@ class LocalPaymentGateway:
 		raise NotImplementedError
 
 	def payer_operators(self) -> list[dict]:
-		"""The operators the payer picks from on the page, as {value, label}. Empty when there is no choice."""
+		"""The operators the payer picks from on the page, as {value, label, icon}. Empty when there is no choice."""
 		return []
+
+	def payer_icon(self) -> str | None:
+		"""The logo above the number field when the payer has no operator to pick."""
+		return None
 
 	def attempt_data(self, operator: str | None) -> dict:
 		"""What to keep in a new attempt's provider_data. Raises a ValidationError for a refused operator."""
