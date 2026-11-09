@@ -364,8 +364,8 @@ class TestNokashSettings(IntegrationTestCase):
 
 	def test_the_page_offers_the_operators_enabled_in_the_configuration(self):
 		both = self.render(self.open_session().token)
-		self.assertIn(f'value="{MTN_MOMO}"', both)
-		self.assertIn(f'value="{ORANGE_MONEY}"', both)
+		self.assertIn(f'data-operator="{MTN_MOMO}"', both)
+		self.assertIn(f'data-operator="{ORANGE_MONEY}"', both)
 
 		self.settings.db_set("accept_mtn_momo", 0)
 		alone = self.render(self.open_session().token)

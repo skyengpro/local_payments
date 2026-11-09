@@ -93,6 +93,11 @@ def payer_operators(session) -> list[dict]:
 	return get_payment_gateway_controller(session.payment_gateway).payer_operators()
 
 
+def payer_icon(session) -> str | None:
+	"""The logo above the number field when the gateway offers no choice."""
+	return get_payment_gateway_controller(session.payment_gateway).payer_icon()
+
+
 def provider_name(gateway: str) -> str:
 	"""The provider's display name, read off the controller class of the gateway's settings doctype.
 

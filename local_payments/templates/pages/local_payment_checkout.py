@@ -29,7 +29,7 @@ def get_context(context):
 	waiting = session.status == lc.OPEN and bool(attempt and attempt.status in rc.CHECKABLE_STATES)
 	context.update(
 		token=frappe.form_dict.token,
-		session_title=session.title,
+		session_title=_display_title(session),
 		amount=_display_amount(session),
 		currency=session.currency,
 		provider=api.provider_name(session.payment_gateway),
@@ -38,7 +38,15 @@ def get_context(context):
 		waiting=waiting,
 		# The form stays hidden while waiting, and the page reloads when that ends.
 		operators=api.payer_operators(session) if session.status == lc.OPEN and not waiting else [],
+		payer_icon=api.payer_icon(session) if session.status == lc.OPEN else None,
+		# Any non-empty value replaces the "Powered by" credit in the site footer.
+		footer_powered=" ",
 	)
+
+
+def _display_title(session) -> str | None:
+	"""The title without the record id some consumers append to it, e.g. a course slug."""
+	return session.title and session.title.removesuffix(f" {session.reference_docname}")
 
 
 def _display_amount(session) -> str:
