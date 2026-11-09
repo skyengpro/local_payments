@@ -10,7 +10,7 @@ from frappe.model.document import Document
 from frappe.utils import cint
 
 from local_payments import lifecycle as lc
-from local_payments.gateway import Initiated, LocalPaymentGateway
+from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
 from local_payments.providers.nokash import (
@@ -27,7 +27,7 @@ from local_payments.providers.nokash import (
 
 OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
 OPERATOR_ICONS = {
-	MTN_MOMO: "/assets/local_payments/images/operators/mtn_momo.png",
+	MTN_MOMO: MTN_MOMO_ICON,
 	ORANGE_MONEY: "/assets/local_payments/images/operators/orange_money.svg",
 }
 
@@ -90,6 +90,10 @@ class NokashSettings(LocalPaymentGateway, Document):
 		if len(offered) < 2:
 			return []
 		return [{"value": op, "label": labels[op], "icon": OPERATOR_ICONS[op]} for op in offered]
+
+	def payer_icon(self) -> str | None:
+		offered = self.offered_operators()
+		return OPERATOR_ICONS[offered[0]] if len(offered) == 1 else None
 
 	def attempt_data(self, operator: str | None) -> dict:
 		offered = self.offered_operators()

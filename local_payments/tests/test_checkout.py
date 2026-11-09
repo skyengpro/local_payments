@@ -154,6 +154,13 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("Payment for Course", content)
 		self.assertNotIn("Payment for Course Administrator", content)
 
+	def test_a_gateway_with_no_operator_choice_shows_its_icon_above_the_number(self):
+		icon = "/assets/local_payments/images/operators/mtn_momo.png"
+		with patch.object(LocalPaymentsTestSettings, "payer_icon", return_value=icon):
+			content = self.render(make_session().token)
+
+		self.assertIn(f'<img src="{icon}"', content)
+
 	def test_the_operator_choice_shows_only_when_the_gateway_offers_one_on_an_open_session(self):
 		choice = 'name="operator"'
 		self.assertNotIn(choice, self.render(make_session().token))

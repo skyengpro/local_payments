@@ -11,7 +11,7 @@ from frappe.model.document import Document
 from frappe.utils import cint
 
 from local_payments import lifecycle as lc
-from local_payments.gateway import Initiated, LocalPaymentGateway
+from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
 from local_payments.providers.mtn_momo import InitiationOutcome, MtnMomoClient, MtnMomoConfig
@@ -75,6 +75,9 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 
 	provider_name = "MTN MoMo"
 	initiation_name = "RequestToPay"
+
+	def payer_icon(self) -> str:
+		return MTN_MOMO_ICON
 
 	@property
 	def token_cache_key(self) -> str:

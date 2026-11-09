@@ -50,6 +50,8 @@
 					<span id="lp-chosen-label"></span>
 				</div>
 				<input type="hidden" name="operator" id="lp-operator">
+			{% elif payer_icon %}
+				<div class="lp-chosen"><img src="{{ payer_icon }}" alt="" width="48" height="48"></div>
 			{% endif %}
 			<div class="form-group">
 				<label for="lp-msisdn">{{ _("Mobile money number") }}</label>
