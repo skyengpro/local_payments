@@ -45,11 +45,15 @@ NETWORK_LOG_SAVEPOINT = "lp_network_log"
 
 @dataclass(frozen=True)
 class Initiated:
-	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id."""
+	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id.
+
+	`alert` is the `alert_managers` reason to send once the attempt is saved, if any.
+	"""
 
 	status: str
 	integration_request: str | None = None
 	transaction_id: str | None = None
+	alert: str | None = None
 
 
 def log_error(title: str, session_name: str | None = None, detail: str | None = None) -> None:
@@ -129,6 +133,9 @@ class LocalPaymentGateway:
 		`provider_data` from `attempt_data()`.
 		"""
 		raise NotImplementedError
+
+	def validate_minimum_transaction_amount(self, currency, amount):
+		"""Raises for an amount below the gateway's minimum. ERPNext calls this one too."""
 
 	def payer_operators(self) -> list[dict]:
 		"""The operators the payer picks from on the page, as {value, label, icon}. Empty when there is no choice."""
@@ -281,6 +288,7 @@ class LocalPaymentGateway:
 		amount, currency = flt(kwargs.get("amount")), kwargs.get("currency")
 		self.validate_transaction_currency(currency)
 		validate_amount_for_currency(amount, currency)
+		self.validate_minimum_transaction_amount(currency, amount)
 
 		token = self._find_open_session(kwargs, amount, currency) or self._create_session(
 			kwargs, amount, currency

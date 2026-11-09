@@ -434,6 +434,9 @@ def alert_managers(session_name: str, detail: str | int | None, reason: str) -> 
 		"no_reference": _(
 			"Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
 		),
+		"provider_refused": _(
+			"The provider refused attempt {1} on {0}. Check the gateway's keys and settings."
+		),
 	}
 	subject = subjects[reason].format(session_name, detail)
 	try:

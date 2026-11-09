@@ -873,6 +873,10 @@ msgstr ""
 msgid "The payment service is not responding at the moment. Please try again in a few minutes."
 msgstr "Le service de paiement ne répond pas pour le moment. Veuillez réessayer dans quelques minutes."
 
+#: local_payments/reconcile.py
+msgid "The provider refused attempt {1} on {0}. Check the gateway's keys and settings."
+msgstr "Le fournisseur a refusé la tentative {1} sur {0}. Vérifiez les clés et les paramètres de la passerelle."
+
 #: local_payments/api.py:217
 msgid "This payment can no longer be made from this page."
 msgstr "Ce paiement ne peut plus être effectué depuis cette page."

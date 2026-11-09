@@ -47,11 +47,6 @@ class NokashSettings(LocalPaymentGateway, Document):
 	msisdn_prefix = MSISDN_PREFIX
 	msisdn_national_length = MSISDN_NATIONAL_LENGTH
 
-	def get_payment_url(self, **kwargs):
-		# Only ERPNext calls the minimum check itself. A Web Form or a business doctype comes straight here.
-		self.validate_minimum_transaction_amount(kwargs.get("currency"), kwargs.get("amount"))
-		return super().get_payment_url(**kwargs)
-
 	def validate_minimum_transaction_amount(self, currency, amount):
 		if flt(amount) < cint(self.minimum_amount):
 			frappe.throw(
@@ -86,9 +81,10 @@ class NokashSettings(LocalPaymentGateway, Document):
 			self.log_refusal(attempt_id, session.name, str(refused))
 			return Initiated(lc.ERROR)
 
-		status = lc.INITIATED
+		status, alert = lc.INITIATED, None
 		if initiation.outcome == InitiationOutcome.REJECTED:
-			status = lc.ERROR
+			# The number, amount and operator passed our checks, so this points at the keys or the settings.
+			status, alert = lc.ERROR, "provider_refused"
 			self.log_refusal(
 				attempt_id,
 				session.name,
@@ -100,6 +96,7 @@ class NokashSettings(LocalPaymentGateway, Document):
 				attempt_id, session.name, exchanges, initiation.outcome == InitiationOutcome.ACCEPTED
 			),
 			initiation.transaction_id,
+			alert,
 		)
 
 	def payer_operators(self) -> list[dict]:

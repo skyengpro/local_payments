@@ -390,6 +390,38 @@ class TestNokashSettings(IntegrationTestCase):
 		http.return_value.request.assert_not_called()
 		self.assertEqual(reload(session).attempts, [])
 
+	def test_only_a_payin_refused_by_nokash_alerts_the_managers(self):
+		def start(answer):
+			session = self.open_session()
+			frappe.db.commit()  # nosemgrep: frappe-manual-commit -- start_attempt() runs its own transactions
+			with patch(HTTP) as http:
+				if isinstance(answer, Exception):
+					http.return_value.request.side_effect = answer
+				else:
+					http.return_value.request.return_value = answer
+				state = api.start_attempt(session.token, "600000001", MTN_MOMO)
+			alerts = frappe.get_all(
+				"Notification Log",
+				{"document_type": "Local Payment", "document_name": session.name},
+				pluck="subject",
+			)
+			return state["attempt_status"], alerts
+
+		status, alerts = start(recorded("payin_below_minimum"))
+		self.assertEqual(status, lc.ERROR)
+		self.assertEqual(len(alerts), len(rc.alert_recipients()))
+		self.assertIn("refused", alerts[0])
+
+		status, alerts = start(requests.ReadTimeout())
+		self.assertEqual((status, alerts), (lc.INITIATED, []))
+
+	def test_the_minimum_is_checked_last_so_the_refusal_gives_the_real_reason(self):
+		with self.assertRaisesRegex(frappe.ValidationError, "only accepts"):
+			self.settings.get_payment_url(**payment_args(amount=5, currency="EUR"))
+		self.settings.db_set("enabled", 0)
+		with self.assertRaisesRegex(frappe.ValidationError, "is disabled"):
+			self.settings.get_payment_url(**payment_args(amount=5))
+
 	def test_a_payment_with_each_operator_ends_paid_and_notifies_once_by_polling_alone(self):
 		self.consumer_hook()
 		accepted_id = RECORDED["payin_accepted"]["body"]["data"]["id"]

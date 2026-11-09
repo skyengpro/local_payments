@@ -516,6 +516,9 @@ next check sends it. The authorization one fires on any error
 except a lock, deadlock, concurrent edit or read-only database, which the backoff retries alone. It is sent
 once per session; the retries and the daily "failed N times" alert still follow.
 
+`start_attempt` raises one alert itself, once the attempt is saved: a Nokash payin refused by Nokash
+(`provider_refused`), which after the local checks points at the keys or the settings.
+
 ## Security and permissions
 
 - Merchant credentials are stored in `Password` fields, encrypted with the

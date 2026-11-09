@@ -172,6 +172,8 @@ def _start(token: str, msisdn: str, operator: str | None) -> dict:
 		_record_start(session.name, attempt_id, started)
 		# The provider's id may be the only way to check this attempt, so it is saved before anything can fail.
 		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- provider id on record before anything else
+		if started.alert:
+			rc.alert_managers(session.name, attempt_id, started.alert)
 	except Exception:
 		# The attempt is on record and may be on the phone already. The log keeps the id support will need.
 		frappe.db.rollback()
