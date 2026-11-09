@@ -26,6 +26,10 @@ from local_payments.providers.nokash import (
 )
 
 OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
+OPERATOR_ICONS = {
+	MTN_MOMO: "/assets/local_payments/images/operators/mtn_momo.png",
+	ORANGE_MONEY: "/assets/local_payments/images/operators/orange_money.svg",
+}
 
 
 class NokashSettings(LocalPaymentGateway, Document):
@@ -83,7 +87,9 @@ class NokashSettings(LocalPaymentGateway, Document):
 		labels = {MTN_MOMO: _("MTN Mobile Money"), ORANGE_MONEY: _("Orange Money")}
 		offered = self.offered_operators()
 		# A single operator leaves nothing to choose.
-		return [{"value": op, "label": labels[op]} for op in offered] if len(offered) > 1 else []
+		if len(offered) < 2:
+			return []
+		return [{"value": op, "label": labels[op], "icon": OPERATOR_ICONS[op]} for op in offered]
 
 	def attempt_data(self, operator: str | None) -> dict:
 		offered = self.offered_operators()

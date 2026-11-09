@@ -11,43 +11,65 @@
 {%- block header -%}{%- endblock -%}
 
 {%- block page_content -%}
-<div class="page-card" id="lp-checkout" data-token="{{ token }}" data-waiting="{{ 1 if waiting else 0 }}">
+<div class="page-card lp-card" id="lp-checkout" data-token="{{ token }}" data-waiting="{{ 1 if waiting else 0 }}">
 	<div class="page-card-head">
 		<h4>{{ session_title or _("Payment") }}</h4>
 	</div>
 
-	<p class="lp-amount">{{ amount }} <small class="text-muted">{{ currency }}</small></p>
-	<p class="text-muted">{{ _("Payment by {0}").format(provider) }}</p>
+	<div class="lp-summary">
+		<p class="lp-amount">{{ amount }} <small class="text-muted">{{ currency }}</small></p>
+		<p class="text-muted">{{ _("Payment by {0}").format(provider) }}</p>
+	</div>
 
 	{% if status == "Open" %}
-		<form id="lp-start-attempt" class="lp-form {% if waiting %}hidden{% endif %}" novalidate
+		{% if operators %}
+			<section id="lp-choose-operator" class="lp-step">
+				<p class="lp-step-title">{{ _("Choose your mobile money operator.") }}</p>
+				<div class="lp-operators" role="group" aria-label="{{ _('Mobile money operator')|e }}">
+					{% for operator in operators %}
+						<button type="button" class="lp-operator" data-operator="{{ operator.value }}">
+							{% if operator.icon %}<img src="{{ operator.icon }}" alt="" width="56" height="56">{% endif %}
+							<span>{{ operator.label }}</span>
+						</button>
+					{% endfor %}
+				</div>
+			</section>
+		{% endif %}
+
+		<form id="lp-start-attempt" class="lp-form lp-step {% if waiting or operators %}hidden{% endif %}" novalidate
 			data-start-failed="{{ _('The payment service is not responding at the moment. Please try again in a few minutes.')|e }}"
 			data-empty-number="{{ _('Enter your mobile money number.')|e }}"
-			data-no-operator="{{ _('Choose your mobile money operator.')|e }}">
+			data-sending="{{ _('Sending...')|e }}">
+			{% if operators %}
+				<button type="button" class="lp-back" id="lp-back">
+					<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+					<span>{{ _("Change operator") }}</span>
+				</button>
+				<div class="lp-chosen">
+					<img id="lp-chosen-icon" class="hidden" alt="" width="48" height="48">
+					<span id="lp-chosen-label"></span>
+				</div>
+				<input type="hidden" name="operator" id="lp-operator">
+			{% endif %}
 			<div class="form-group">
 				<label for="lp-msisdn">{{ _("Mobile money number") }}</label>
 				<input type="tel" class="form-control" id="lp-msisdn" name="msisdn"
 					inputmode="tel" autocomplete="tel" required aria-describedby="lp-msisdn-error">
 				<div class="invalid-feedback" id="lp-msisdn-error" aria-live="polite"></div>
+				<div id="lp-recent" class="lp-recent hidden" role="group" aria-label="{{ _('Recent numbers')|e }}">
+					<span class="lp-recent-title">{{ _("Recent numbers") }}</span>
+					<div id="lp-recent-list" class="lp-recent-list"></div>
+				</div>
 			</div>
-			{% if operators %}
-				<fieldset class="form-group">
-					<legend class="col-form-label">{{ _("Mobile money operator") }}</legend>
-					{% for operator in operators %}
-						<div class="form-check">
-							<input type="radio" class="form-check-input" name="operator" required
-								id="lp-operator-{{ operator.value }}" value="{{ operator.value }}">
-							<label class="form-check-label" for="lp-operator-{{ operator.value }}">{{ operator.label }}</label>
-						</div>
-					{% endfor %}
-					<div class="invalid-feedback d-block" id="lp-operator-error" aria-live="polite"></div>
-				</fieldset>
-			{% endif %}
-			<button type="submit" class="btn btn-primary btn-sm">{{ _("Pay") }}</button>
+			<button type="submit" class="btn btn-primary lp-pay">
+				<span class="lp-spinner" aria-hidden="true"></span>
+				<span class="lp-pay-label">{{ _("Pay") }}</span>
+			</button>
 		</form>
 
-		<p id="lp-waiting" class="text-muted {% if not waiting %}hidden{% endif %}">
-			{{ _("Confirm the payment on your phone. This page updates on its own.") }}
+		<p id="lp-waiting" class="lp-waiting text-muted {% if not waiting %}hidden{% endif %}">
+			<span class="lp-spinner" aria-hidden="true"></span>
+			<span>{{ _("Confirm the payment on your phone. This page updates on its own.") }}</span>
 		</p>
 
 		<p id="lp-gave-up" class="text-muted hidden">
@@ -65,10 +87,232 @@
 <style>
 	{% include "templates/styles/card_style.css" %}
 
+	.lp-card {
+		max-width: 400px;
+		text-align: center;
+		border-radius: 16px;
+		box-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+	}
+
+	.lp-form {
+		text-align: left;
+	}
+
+	.lp-summary {
+		padding: 8px 0 4px;
+	}
+
+	.lp-summary p {
+		margin-bottom: 4px;
+	}
+
 	.lp-amount {
 		font-size: var(--text-2xl);
 		font-weight: var(--weight-semibold);
-		margin-bottom: 0;
+	}
+
+	.lp-step {
+		margin-top: 12px;
+		animation: lp-step-in 0.22s ease-out;
+	}
+
+	.lp-step-title {
+		font-weight: var(--weight-medium);
+	}
+
+	.lp-operators {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+		gap: 12px;
+	}
+
+	.lp-operator {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		padding: 14px 8px;
+		color: inherit;
+		background: transparent;
+		border: 1px solid var(--border-color);
+		border-radius: 14px;
+		cursor: pointer;
+		transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+	}
+
+	.lp-operator img,
+	.lp-chosen img {
+		border-radius: 12px;
+	}
+
+	.lp-operator:hover {
+		transform: translateY(-2px);
+		border-color: var(--primary);
+		box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+	}
+
+	.lp-operator:active {
+		transform: scale(0.96);
+	}
+
+	.lp-operator:focus-visible,
+	.lp-back:focus-visible,
+	.lp-recent-number:focus-visible {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+
+	.lp-back {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 4px 6px 4px 0;
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+		background: none;
+		border: 0;
+		cursor: pointer;
+		transition: color 0.15s ease, transform 0.15s ease;
+	}
+
+	.lp-back:hover:not(:disabled) {
+		color: var(--text-color);
+		transform: translateX(-2px);
+	}
+
+	.lp-back:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+
+	.lp-chosen {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		margin: 6px 0 14px;
+		font-weight: var(--weight-medium);
+	}
+
+	#lp-msisdn {
+		height: 44px;
+		/* Below 16px, iOS zooms the page on focus. */
+		font-size: 16px;
+	}
+
+	.lp-recent {
+		margin-top: 10px;
+	}
+
+	.lp-recent-title {
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+	}
+
+	.lp-recent-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 4px;
+	}
+
+	.lp-recent-number {
+		padding: 4px 12px;
+		color: inherit;
+		font-size: var(--text-sm);
+		background: var(--control-bg);
+		border: 1px solid transparent;
+		border-radius: 999px;
+		cursor: pointer;
+		transition: transform 0.12s ease, border-color 0.12s ease;
+	}
+
+	.lp-recent-number:hover {
+		border-color: var(--primary);
+	}
+
+	.lp-recent-number:active {
+		transform: scale(0.95);
+	}
+
+	.lp-pay {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 44px;
+		border-radius: 10px;
+		transition: transform 0.12s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+	}
+
+	.lp-pay:hover:not(:disabled) {
+		box-shadow: 0 6px 14px rgba(0, 0, 0, 0.18);
+	}
+
+	.lp-pay:active:not(:disabled) {
+		transform: scale(0.97);
+	}
+
+	.lp-pay .lp-spinner {
+		display: none;
+	}
+
+	.lp-pay.is-loading {
+		opacity: 0.85;
+	}
+
+	.lp-pay.is-loading .lp-spinner {
+		display: inline-block;
+	}
+
+	.lp-spinner {
+		display: inline-block;
+		flex: none;
+		width: 16px;
+		height: 16px;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: lp-spin 0.7s linear infinite;
+	}
+
+	.lp-waiting {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 10px;
+		margin-top: 12px;
+		text-align: left;
+	}
+
+	.lp-waiting.hidden {
+		display: none;
+	}
+
+	@keyframes lp-step-in {
+		from {
+			opacity: 0;
+			transform: translateY(8px);
+		}
+	}
+
+	@keyframes lp-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.lp-card *,
+		.lp-step {
+			transition: none !important;
+			animation-duration: 0.01ms !important;
+		}
+
+		.lp-spinner {
+			animation-duration: 2s !important;
+		}
 	}
 </style>
 {%- endblock -%}
@@ -82,6 +326,7 @@
 		const INTERVAL = 5000;
 		const MAX_POLLS = 120;
 		const IN_FLIGHT = ["Initiated", "Pending", "Unresolved"];
+		const MAX_RECENT_NUMBERS = 4;
 
 		const show = (id, visible) => {
 			document.getElementById(id)?.classList.toggle("hidden", !visible);
@@ -130,8 +375,19 @@
 		if (!form) return;
 		const field = document.getElementById("lp-msisdn");
 		const feedback = document.getElementById("lp-msisdn-error");
-		const operatorFeedback = document.getElementById("lp-operator-error");
 		const button = form.querySelector("button[type=submit]");
+		const buttonLabel = button.querySelector(".lp-pay-label");
+		const payLabel = buttonLabel.textContent;
+		const operatorInput = document.getElementById("lp-operator");
+		const back = document.getElementById("lp-back");
+		const recentList = document.getElementById("lp-recent-list");
+		let started = card.dataset.waiting === "1";
+
+		const clearError = () => {
+			feedback.textContent = "";
+			field.classList.remove("is-invalid");
+			field.removeAttribute("aria-invalid");
+		};
 
 		const showError = (message) => {
 			feedback.textContent = message || form.dataset.startFailed;
@@ -148,30 +404,109 @@
 			}
 		};
 
+		// Kept per operator: an Orange number is no use on the MTN step.
+		const recentKey = () => `lp_recent_numbers:${operatorInput?.value || "default"}`;
+		const digits = (number) => number.replace(/\D/g, "");
+
+		const readRecent = () => {
+			try {
+				const saved = JSON.parse(localStorage.getItem(recentKey()));
+				return Array.isArray(saved) ? saved.filter((n) => typeof n === "string") : [];
+			} catch (e) {
+				return [];
+			}
+		};
+
+		const remember = (number) => {
+			const others = readRecent().filter((n) => digits(n) !== digits(number));
+			try {
+				localStorage.setItem(recentKey(), JSON.stringify([number, ...others].slice(0, MAX_RECENT_NUMBERS)));
+			} catch (e) {
+				// Private browsing can refuse storage: the payment does not depend on it.
+			}
+		};
+
+		const renderRecent = () => {
+			const numbers = readRecent().slice(0, MAX_RECENT_NUMBERS);
+			recentList.replaceChildren(
+				...numbers.map((number) => {
+					const chip = document.createElement("button");
+					chip.type = "button";
+					chip.className = "lp-recent-number";
+					chip.textContent = number;
+					chip.addEventListener("click", () => {
+						field.value = number;
+						clearError();
+					});
+					return chip;
+				})
+			);
+			show("lp-recent", numbers.length > 0);
+		};
+
+		const setBusy = (busy) => {
+			button.disabled = busy;
+			button.classList.toggle("is-loading", busy);
+			button.setAttribute("aria-busy", busy ? "true" : "false");
+			buttonLabel.textContent = busy ? form.dataset.sending : payLabel;
+			if (back) back.disabled = busy;
+		};
+
+		const showOperators = () => {
+			operatorInput.value = "";
+			field.value = "";
+			clearError();
+			show("lp-start-attempt", false);
+			show("lp-choose-operator", true);
+		};
+
+		const chooseOperator = (choice) => {
+			const icon = choice.querySelector("img");
+			const chosenIcon = document.getElementById("lp-chosen-icon");
+			operatorInput.value = choice.dataset.operator;
+			document.getElementById("lp-chosen-label").textContent = choice.querySelector("span").textContent;
+			if (icon) chosenIcon.src = icon.src;
+			chosenIcon.classList.toggle("hidden", !icon);
+			renderRecent();
+			show("lp-choose-operator", false);
+			show("lp-start-attempt", true);
+			field.focus();
+			// So the phone's own back button returns to the operators too.
+			history.pushState({ lpNumberStep: true }, "");
+		};
+
+		document.querySelectorAll(".lp-operator").forEach((choice) => {
+			choice.addEventListener("click", () => chooseOperator(choice));
+		});
+		back?.addEventListener("click", () => history.back());
+		window.addEventListener("popstate", () => {
+			if (operatorInput && !started) showOperators();
+		});
+
+		if (!operatorInput && !started) renderRecent();
+
 		form.addEventListener("submit", (event) => {
 			event.preventDefault();
-			field.classList.remove("is-invalid");
-			field.removeAttribute("aria-invalid");
+			clearError();
+			const number = field.value.trim();
 			// An empty field would only spend the payer's start budget.
-			if (!field.value.trim()) {
+			if (!number) {
 				showError(form.dataset.emptyNumber);
 				return;
 			}
-			const operator = form.querySelector("input[name=operator]:checked");
-			if (operatorFeedback) {
-				operatorFeedback.textContent = operator ? "" : form.dataset.noOperator;
-				if (!operator) return;
-			}
-			button.disabled = true;
+			setBusy(true);
 			frappe.call({
 				method: "local_payments.api.start_attempt",
 				type: "POST",
-				args: { token: card.dataset.token, msisdn: field.value, operator: operator?.value },
-				// Errors go under the field, not in a dialog.
-				silent: true,
+				args: { token: card.dataset.token, msisdn: number, operator: operatorInput?.value },
+				// Errors go under the field, not in a dialog. The website's frappe.call ignores `silent`.
+				error_msg: "#lp-msisdn-error",
 				callback: (response) => {
 					const state = response.message || {};
 					if (IN_FLIGHT.includes(state.attempt_status)) {
+						started = true;
+						remember(number);
+						show("lp-choose-operator", false);
 						show("lp-start-attempt", false);
 						show("lp-waiting", true);
 						startPolling();
@@ -180,9 +515,7 @@
 					}
 				},
 				error: (r) => showError(serverMessage(r)),
-				always: () => {
-					button.disabled = false;
-				},
+				always: () => setBusy(false),
 			});
 		});
 	});

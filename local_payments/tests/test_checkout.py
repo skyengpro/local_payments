@@ -146,6 +146,13 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("XAF", content)
 		self.assertIn(PROVIDER, content)
 		self.assertIn(FORM, content)
+		self.assertNotIn("Powered by", content)
+
+	def test_title_drops_the_record_id_a_consumer_appended(self):
+		content = self.render(make_session(title="Payment for Course Administrator").token)
+
+		self.assertIn("Payment for Course", content)
+		self.assertNotIn("Payment for Course Administrator", content)
 
 	def test_the_operator_choice_shows_only_when_the_gateway_offers_one_on_an_open_session(self):
 		choice = 'name="operator"'
