@@ -74,12 +74,14 @@
    "fieldname": "i_space_key",
    "fieldtype": "Password",
    "label": "Integrator Key",
+   "length": 255,
    "reqd": 1
   },
   {
    "fieldname": "app_space_key",
    "fieldtype": "Password",
    "label": "App Key",
+   "length": 255,
    "reqd": 1
   },
   {
@@ -128,7 +130,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-08 18:00:00.000000",
+ "modified": "2026-11-10 09:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Nokash Settings",
