@@ -3,7 +3,7 @@
 
 import json
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import requests
@@ -26,11 +26,15 @@ CONFIG = NokashConfig(
 	api_base_url="https://api.nokash.app/",
 	i_space_key="fake-i-key",
 	app_space_key="fake-app-key",
+	integration_key="fake-integration-key",
 )
 
+# The same contract once Nokash recognises it by its address.
+CONFIG_WITHOUT_INTEGRATION_KEY = replace(CONFIG, integration_key=None)
+
 ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
-MSISDN = "237000000001"
-NATIONAL = "000000001"
+MSISDN = "237100000001"
+NATIONAL = "100000001"
 TRANSACTION_ID = "nk_tx_xm5ojhd01lkv06c0bjvu"
 
 
@@ -83,9 +87,9 @@ def answering(**data):
 	return FakeResponse(200, {**body, "data": {**body["data"], **data}})
 
 
-def client(answer, on_exchange=None):
+def client(answer, on_exchange=None, config=CONFIG):
 	http = FakeHttp(answer)
-	return NokashClient(CONFIG, http, on_exchange), http
+	return NokashClient(config, http, on_exchange), http
 
 
 class TestPayin(unittest.TestCase):
@@ -104,8 +108,8 @@ class TestPayin(unittest.TestCase):
 
 	def test_the_request_signs_what_it_sends(self):
 		nokash, http = client(recorded("payin_accepted"))
-		# A Currency field reads as a float.
-		nokash.payin(ATTEMPT_ID, 1000.0, MSISDN, ORANGE_MONEY)
+		# A Currency field reads as a float; the payer may type the national number alone.
+		nokash.payin(ATTEMPT_ID, 1000.0, NATIONAL, ORANGE_MONEY)
 
 		call = http.calls[0]
 		body = call.kwargs["json"]
@@ -118,14 +122,14 @@ class TestPayin(unittest.TestCase):
 			{
 				"order_id": ATTEMPT_ID,
 				"payment_method": ORANGE_MONEY,
-				"user_data": {"user_phone": NATIONAL},
+				"user_data": {"user_phone": MSISDN},
 			},
 		)
 		self.assertIs(type(body["amount"]), int)
 		self.assertNotIn("callback_url", body)
 		self.assertEqual(
 			call.kwargs["headers"]["hmac-signature"],
-			sign(ATTEMPT_ID, 1000, NATIONAL, CONFIG.app_space_key, CONFIG.i_space_key),
+			sign(ATTEMPT_ID, 1000, MSISDN, CONFIG.app_space_key, CONFIG.i_space_key),
 		)
 		self.assertIs(call.kwargs["allow_redirects"], False)
 
@@ -184,7 +188,7 @@ class TestPayin(unittest.TestCase):
 		self.assertEqual(http.calls[0].kwargs["json"]["callback_url"], "https://pay.example.com/hook")
 
 	def test_no_secret_reaches_the_network_log(self):
-		signature = sign(ATTEMPT_ID, 1000, NATIONAL, CONFIG.app_space_key, CONFIG.i_space_key)
+		signature = sign(ATTEMPT_ID, 1000, MSISDN, CONFIG.app_space_key, CONFIG.i_space_key)
 		echoed = FakeResponse(
 			400,
 			{"status": "REQUEST_BAD_INFOS"},
@@ -225,6 +229,30 @@ class TestPayin(unittest.TestCase):
 	def test_the_keys_stay_out_of_the_config_repr(self):
 		self.assertNotIn(CONFIG.i_space_key, repr(CONFIG))
 		self.assertNotIn(CONFIG.app_space_key, repr(CONFIG))
+		self.assertNotIn(CONFIG.integration_key, repr(CONFIG))
+
+	def test_every_authenticated_call_carries_the_integration_key_only_while_it_is_set(self):
+		"""Without the header Nokash answers 403 to the payin and to the status query alike."""
+		for configured, expected in (
+			(CONFIG, CONFIG.integration_key),
+			(CONFIG_WITHOUT_INTEGRATION_KEY, None),
+		):
+			with self.subTest("set" if expected else "not set"):
+				# One answer replayed for both calls, so it has to read as a status too.
+				nokash, http = client(recorded("status_success"), config=configured)
+				nokash.payin(ATTEMPT_ID, 1000, MSISDN, MTN_MOMO)
+				nokash.check_status(TRANSACTION_ID, ATTEMPT_ID)
+
+				self.assertEqual(
+					[call.kwargs["headers"].get("X-NK-Integration") for call in http.calls],
+					[expected, expected],
+				)
+
+	def test_the_integration_key_never_reaches_the_network_log(self):
+		exchanges = []
+		echoed = FakeResponse(400, None, text=f"Unauthorized {CONFIG.integration_key}")
+		client(echoed, exchanges.append)[0].payin(ATTEMPT_ID, 1000, MSISDN, MTN_MOMO)
+		self.assertNotIn(CONFIG.integration_key, repr(exchanges[0]))
 
 
 class TestStatus(unittest.TestCase):
@@ -242,7 +270,10 @@ class TestStatus(unittest.TestCase):
 			),
 		)
 		self.assertNotIn("json", call.kwargs)
-		self.assertEqual(call.kwargs["headers"], {"Content-Type": "application/json"})
+		self.assertEqual(
+			call.kwargs["headers"],
+			{"Content-Type": "application/json", "X-NK-Integration": CONFIG.integration_key},
+		)
 
 	def test_transaction_statuses(self):
 		cases = {

@@ -1,0 +1,174 @@
+{
+	"info": {
+		"_postman_id": "ff185e27-5e7b-4c7a-9635-d297242ab628",
+		"name": "API Payin v407 - NOKASH",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "payin options",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "auth_code",
+						"type": "text",
+						"value": "RpIdQu75lRfRMWW",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{nk_api_url}}/lapas-on-trans/transaction-options/payin?country=CM",
+					"host": [
+						"{{nk_api_url}}"
+					],
+					"path": [
+						"lapas-on-trans",
+						"transaction-options",
+						"payin"
+					],
+					"query": [
+						{
+							"key": "country",
+							"value": "CM"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CM - request payin 407",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"i_space_key\": \"{{integrator_test_key}}\",\n    \"app_space_key\": \"{{application_test_key}}\",\n    \"order_id\": \"order_id\",\n    \"amount\": \"100\",\n    \"country\": \"CM\",\n    \"payment_method\": \"MTN_MOMO\",\n    \"payment_type\": \"CM_MOBILEMONEY\",\n    \"callback_url\": \"callback_url\",\n    \"user_data\": {\n        \"user_phone\": \"2376XXXXXXXX\"\n    }\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{nk_api_url}}/lapas-on-trans/trans/api-payin-request/407",
+					"host": [
+						"{{nk_api_url}}"
+					],
+					"path": [
+						"lapas-on-trans",
+						"trans",
+						"api-payin-request",
+						"407"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "NG - request payin 407",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"i_space_key\": \"{{integrator_test_key}}\",\n    \"app_space_key\": \"{{application_test_key}}\",\n    \"payment_type\": \"NG_BANKTRANSFER\",\n    \"country\": \"NG\",\n    \"payment_method\": \"BANK_TRANSFER\",\n    \"order_id\": \"order_id\",\n    \"amount\": \"550\",\n    \"callback_url\": \"callback_url\",\n    \"user_data\": {\n        \"user_email\": \"developers.cmr@nokash.co\",\n        \"user_name\": \"NOKASH DEV\"\n    }\n}\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{nk_api_url}}/lapas-on-trans/trans/api-payin-request/407",
+					"host": [
+						"{{nk_api_url}}"
+					],
+					"path": [
+						"lapas-on-trans",
+						"trans",
+						"api-payin-request",
+						"407"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "transaction status",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "auth_code",
+						"type": "text",
+						"value": "RpIdQu75lRfRMWW",
+						"disabled": true
+					}
+				],
+				"url": {
+					"raw": "{{nk_api_url}}/lapas-on-trans/trans/310/status-request?transaction_id=66f997d5978c632dd400bbbc",
+					"host": [
+						"{{nk_api_url}}"
+					],
+					"path": [
+						"lapas-on-trans",
+						"trans",
+						"310",
+						"status-request"
+					],
+					"query": [
+						{
+							"key": "transaction_id",
+							"value": "66f997d5978c632dd400bbbc"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "integrator_test_key",
+			"value": ""
+		},
+		{
+			"key": "application_test_key",
+			"value": ""
+		},
+		{
+			"key": "integrator_key_prod",
+			"value": ""
+		},
+		{
+			"key": "application_key_prod",
+			"value": ""
+		},
+		{
+			"key": "nk_api_url",
+			"value": "https://api.nokash.app"
+		}
+	]
+}

@@ -127,6 +127,7 @@ class NokashSettings(LocalPaymentGateway, Document):
 			api_base_url=self.api_base_url,
 			i_space_key=self.get_password("i_space_key"),
 			app_space_key=self.get_password("app_space_key"),
+			integration_key=self.get_password("integration_key", raise_exception=False),
 		)
 		return NokashClient(config, on_exchange=on_exchange)
 

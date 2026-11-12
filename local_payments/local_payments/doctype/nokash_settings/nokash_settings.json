@@ -15,6 +15,7 @@
   "column_break_api",
   "i_space_key",
   "app_space_key",
+  "integration_key",
   "payer_section",
   "accept_mtn_momo",
   "accept_orange_money",
@@ -74,15 +75,22 @@
    "fieldname": "i_space_key",
    "fieldtype": "Password",
    "label": "Integrator Key",
-   "length": 255,
+   "length": 200,
    "reqd": 1
   },
   {
    "fieldname": "app_space_key",
    "fieldtype": "Password",
    "label": "App Key",
-   "length": 255,
+   "length": 200,
    "reqd": 1
+  },
+  {
+   "description": "Sent as the X-NK-Integration header. Nokash gives it for the integration phase and refuses every call without it; leave it empty once the contract is recognised by its address instead.",
+   "fieldname": "integration_key",
+   "fieldtype": "Password",
+   "label": "Integration Key",
+   "length": 200
   },
   {
    "fieldname": "payer_section",
@@ -130,7 +138,7 @@
  ],
  "index_web_pages_for_search": 0,
  "links": [],
- "modified": "2026-11-10 09:00:00.000000",
+ "modified": "2026-11-12 13:00:00.000000",
  "modified_by": "Administrator",
  "module": "Local Payments",
  "name": "Nokash Settings",

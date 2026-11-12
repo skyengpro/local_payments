@@ -42,6 +42,7 @@ NATIONAL = "000000001"
 TRANSACTION_ID = "nk_tx_xm5ojhd01lkv06c0bjvu"
 I_SPACE_KEY = "fake-i-key"
 APP_SPACE_KEY = "fake-app-key"
+INTEGRATION_KEY = "fake-integration-key"
 
 RECORDED = json.loads(
 	(Path(local_payments.__file__).parent / "tests" / "fixtures" / "nokash.json").read_text()
@@ -88,6 +89,7 @@ def make_settings(**overrides):
 		"enabled": 1,
 		"i_space_key": I_SPACE_KEY,
 		"app_space_key": APP_SPACE_KEY,
+		"integration_key": INTEGRATION_KEY,
 		**overrides,
 	}
 	if frappe.db.exists(SETTINGS, values["gateway_name"]):
@@ -193,12 +195,15 @@ class TestNokashSettings(IntegrationTestCase):
 
 	def test_the_network_log_holds_no_secret_and_the_refusal_no_number(self):
 		started, request = self.initiate(recorded("payin_below_minimum"))
-		signature = request.call_args.kwargs["headers"]["hmac-signature"]
+		headers = request.call_args.kwargs["headers"]
+		signature = headers["hmac-signature"]
 		self.assertEqual(request.call_args.kwargs["json"]["i_space_key"], I_SPACE_KEY)
+		# Without it Nokash refuses the call outright, so the configured key has to reach the request.
+		self.assertEqual(headers["X-NK-Integration"], INTEGRATION_KEY)
 
 		log = frappe.get_doc("Integration Request", started.integration_request).as_dict()
 		logged = frappe.as_json(log)
-		for secret in (I_SPACE_KEY, APP_SPACE_KEY, signature):
+		for secret in (I_SPACE_KEY, APP_SPACE_KEY, INTEGRATION_KEY, signature):
 			self.assertNotIn(secret, logged)
 
 		refusal = frappe.get_last_doc("Error Log", filters={"method": "Nokash payment request refused"}).error
@@ -316,7 +321,11 @@ class TestNokashSettings(IntegrationTestCase):
 			.where((auth.doctype == SETTINGS) & (auth.name == self.settings.name))
 			.run()
 		)
-		for field, secret in (("i_space_key", I_SPACE_KEY), ("app_space_key", APP_SPACE_KEY)):
+		for field, secret in (
+			("i_space_key", I_SPACE_KEY),
+			("app_space_key", APP_SPACE_KEY),
+			("integration_key", INTEGRATION_KEY),
+		):
 			with self.subTest(field):
 				self.assertEqual(meta.get_field(field).fieldtype, "Password")
 				self.assertNotEqual(frappe.db.get_value(SETTINGS, self.settings.name, field), secret)

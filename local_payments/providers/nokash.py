@@ -32,6 +32,10 @@ from local_payments.providers.msisdn import normalize_msisdn
 PAYIN_PATH = "/lapas-on-trans/trans/api-payin-request/407"
 STATUS_PATH = "/lapas-on-trans/trans/310/status-request"
 
+# Nokash answers 403 Unauthorized, body "Unauthorized", to an authenticated call that does not carry
+# this header. The value identifies the integrator while the account is in integration mode.
+INTEGRATION_HEADER = "X-NK-Integration"
+
 # The offer covers Cameroon only, and the status answer names no currency.
 CURRENCY = "XAF"
 COUNTRY = "CM"
@@ -83,6 +87,8 @@ class NokashConfig:
 	api_base_url: str
 	i_space_key: str = field(repr=False)
 	app_space_key: str = field(repr=False)
+	# Empty once Nokash recognises the caller by its address instead.
+	integration_key: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -117,7 +123,7 @@ class NokashClient:
 		the outcome. Raises InvalidRequest, before any call, for a bad number or amount.
 		"""
 		# The signature and the body use these same values.
-		amount, phone = whole_amount(amount), national_number(msisdn)
+		amount, phone = whole_amount(amount), payer_number(msisdn)
 
 		# Everything sent except the keys, which is what may be logged.
 		loggable = {
@@ -138,7 +144,7 @@ class NokashClient:
 			response = self.http.request(
 				"POST",
 				url,
-				headers={"hmac-signature": signature_secret},
+				headers=self._headers({"hmac-signature": signature_secret}),
 				json={
 					"i_space_key": self.config.i_space_key,
 					"app_space_key": self.config.app_space_key,
@@ -170,7 +176,7 @@ class NokashClient:
 			response = self.http.request(
 				"POST",
 				self._url(STATUS_PATH),
-				headers={"Content-Type": "application/json"},
+				headers=self._headers({"Content-Type": "application/json"}),
 				params={"transaction_id": transaction_id},
 				timeout=DEFAULT_TIMEOUT,
 				allow_redirects=False,
@@ -184,10 +190,23 @@ class NokashClient:
 			# Raised here, not in read_status, so the logged traceback leaves out the payer's data.
 			raise NokashError(response.status_code, str(unreadable) or None) from None
 
+	def _headers(self, headers: dict) -> dict:
+		"""The call's own headers, plus the integration one while the contract needs it."""
+		if self.config.integration_key:
+			return {**headers, INTEGRATION_HEADER: self.config.integration_key}
+		return headers
+
 	def _without_secrets(self, text: str, signature_secret: str) -> str:
 		"""Nokash's answer, with anything it repeated from the request masked."""
-		for secret in (self.config.i_space_key, self.config.app_space_key, signature_secret):
-			text = text.replace(secret, "***")
+		secrets = (
+			self.config.i_space_key,
+			self.config.app_space_key,
+			self.config.integration_key,
+			signature_secret,
+		)
+		for secret in secrets:
+			if secret:
+				text = text.replace(secret, "***")
 		return text
 
 	def _report(self, exchange: Exchange) -> None:
@@ -204,13 +223,13 @@ def sign(order_id: str, amount: int, user_phone: str, app_space_key: str, i_spac
 	return hmac.new(i_space_key.encode(), signed.encode(), hashlib.sha256).hexdigest()
 
 
-def national_number(msisdn: str) -> str:
-	"""The number as Nokash expects it, without the country code."""
+def payer_number(msisdn: str) -> str:
+	"""The number as Nokash expects it: 237 then the 9-digit national number."""
 	normalized = normalize_msisdn(msisdn, MSISDN_PREFIX, MSISDN_NATIONAL_LENGTH)
 	if not normalized:
 		# The number itself stays out of the message: it is personal data.
 		raise InvalidRequest(f"The phone number must have {MSISDN_NATIONAL_LENGTH} digits.")
-	return normalized[len(MSISDN_PREFIX) :]
+	return normalized
 
 
 def envelope(response) -> tuple[str | None, dict]:
