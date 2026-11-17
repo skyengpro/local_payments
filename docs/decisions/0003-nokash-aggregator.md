@@ -1,6 +1,6 @@
 # ADR-0003: Integrate Nokash as an aggregator gateway
 
-**Status:** Proposed
+**Status:** Proposed. "Status authentication" superseded by [ADR 0004](0004-nokash-authenticated-status-and-signed-callback.md)
 **Date:** 2026-11-06
 
 ## Context

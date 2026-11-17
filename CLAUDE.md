@@ -40,7 +40,7 @@ Doctypes: `MTN MoMo Settings`, `Orange Money Settings`, `Nokash Settings`,
 ## Invariants (never break; details in ARCHITECTURE)
 
 1. `get_payment_url()` creates a `Local Payment` session and returns the checkout URL. It never calls a provider. GET on the checkout page has no side effect; only POST `start_attempt` starts an attempt (D2).
-2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback body or URL parameter (D3). Nokash shows no authentication on its status call in the sandbox: see ADR 0003.
+2. Only a merchant-authenticated status query proves a payment. Callback, return URL, page polling and scheduler are triggers that all go through `reconcile()`. Never trust a callback body or URL parameter (D3). Nokash's status call (611) is authenticated by `i_space_key` and its callback is signed, but the signature only filters triggers: see ADR 0004.
 3. Record, then act. Session -> `Paid` is committed in its own transaction. `on_payment_authorized` runs in a second transaction under a row lock (`frappe.get_doc(..., for_update=True)`). If it fails: `authorization = Failed`, `Paid` stays (D4).
 4. Consumer callbacks can be replayed and run as Guest, user or Administrator: idempotent, no
    dependence on `frappe.session.user`.

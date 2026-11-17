@@ -333,6 +333,14 @@ msgstr "Saisissez votre numéro mobile money."
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr "Saisissez votre numéro mobile money : {0} chiffres, avec ou sans +{1}."
 
+#: local_payments/gateway.py
+msgid "This is not an MTN number. Enter an MTN Mobile Money number."
+msgstr "Ce n'est pas un numéro MTN. Saisissez un numéro MTN Mobile Money."
+
+#: local_payments/gateway.py
+msgid "This is not an Orange number. Enter an Orange Money number."
+msgstr "Ce n'est pas un numéro Orange. Saisissez un numéro Orange Money."
+
 #. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
 #. Label of the environment (Select) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json

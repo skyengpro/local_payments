@@ -24,6 +24,7 @@ from typing import Protocol
 
 import frappe
 from frappe import _
+from frappe.model.base_document import get_controller
 from frappe.utils import get_datetime, now_datetime
 from frappe.utils.user import get_system_managers, get_users_with_role
 
@@ -86,11 +87,24 @@ def before_first_check(check_count, next_check_on, now=None) -> bool:
 	return not check_count and bool(next_check_on) and (now or now_datetime()) < get_datetime(next_check_on)
 
 
-def check_interval_elapsed(last_checked_on, now=None) -> bool:
+def min_check_interval(gateway: str | None) -> timedelta:
+	"""How long an attempt is left alone between two provider calls: at least MIN_CHECK_INTERVAL.
+
+	A provider that limits its status calls sets `min_check_interval` on its Settings doctype. It is read off
+	the class, which leaves the settings document, and its passwords, unopened.
+	"""
+	settings_doctype = gateway and frappe.db.get_value("Payment Gateway", gateway, "gateway_settings")
+	if not settings_doctype:
+		return MIN_CHECK_INTERVAL
+	asked = getattr(get_controller(settings_doctype), "min_check_interval", MIN_CHECK_INTERVAL)
+	return max(MIN_CHECK_INTERVAL, asked)
+
+
+def check_interval_elapsed(last_checked_on, now=None, interval=MIN_CHECK_INTERVAL) -> bool:
 	"""True when enough time has passed to ask the provider about this attempt again."""
 	if not last_checked_on:
 		return True
-	return (now or now_datetime()) - get_datetime(last_checked_on) >= MIN_CHECK_INTERVAL
+	return (now or now_datetime()) - get_datetime(last_checked_on) >= interval
 
 
 def unresolved_poll_interval(age: timedelta) -> timedelta:
@@ -126,12 +140,12 @@ def needs_a_person(exc: Exception) -> bool:
 	return not isinstance(exc, TRANSIENT_ERRORS)
 
 
-def _next_attempt_check(now, row) -> object:
+def _next_attempt_check(now, row, interval=MIN_CHECK_INTERVAL) -> object:
 	"""When the scheduler should ask the provider about this attempt again. None once it is settled."""
 	if lc.is_final_attempt_status(row.status):
 		return None
 	if row.status != lc.UNRESOLVED:
-		return now + MIN_CHECK_INTERVAL
+		return now + interval
 	age = now - get_datetime(row.expires_on) if row.expires_on else timedelta()
 	return now + unresolved_poll_interval(age)
 
@@ -242,7 +256,7 @@ def _claim(attempt_id: str) -> tuple[str, str, dict] | None:
 	row = _attempt_row(session, attempt_id)
 	if (
 		row.status not in CHECKABLE_STATES
-		or not check_interval_elapsed(row.last_checked_on, now)
+		or not check_interval_elapsed(row.last_checked_on, now, min_check_interval(session.payment_gateway))
 		or before_first_check(row.check_count, row.next_check_on, now)
 	):
 		frappe.db.rollback()  # nothing to keep, release the row lock
@@ -279,7 +293,7 @@ def _record(
 	row.status = resolution.attempt_status
 	row.duplicate = int(resolution.duplicate)
 	row.amount_mismatch = int(resolution.amount_mismatch)
-	row.next_check_on = _next_attempt_check(now, row)
+	row.next_check_on = _next_attempt_check(now, row, min_check_interval(session.payment_gateway))
 	if result.provider_status:
 		row.provider_status = result.provider_status
 	if result.status == lc.SUCCEEDED:
@@ -329,7 +343,7 @@ def _record_failed_check(session_name: str, attempt_id: str) -> None:
 
 	previous = row.status
 	row.status = lc.status_after_failed_check(row.status, _past_deadline(row, now))
-	row.next_check_on = _next_attempt_check(now, row)
+	row.next_check_on = _next_attempt_check(now, row, min_check_interval(session.payment_gateway))
 	save_state(session, history=row.status != previous)
 	frappe.db.commit()  # nosemgrep: frappe-manual-commit -- must survive the caller's rollback on the error
 

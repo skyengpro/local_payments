@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import json
+import traceback
 import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -17,6 +18,7 @@ from local_payments.providers.nokash import (
 	NokashClient,
 	NokashConfig,
 	NokashError,
+	callback_signature_valid,
 	sign,
 )
 
@@ -36,6 +38,7 @@ ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
 MSISDN = "237100000001"
 NATIONAL = "100000001"
 TRANSACTION_ID = "nk_tx_xm5ojhd01lkv06c0bjvu"
+TRANSACTION_ID_611 = TRANSACTION_ID
 
 
 class FakeResponse:
@@ -256,24 +259,57 @@ class TestPayin(unittest.TestCase):
 
 
 class TestStatus(unittest.TestCase):
-	def test_the_call_asks_by_nokash_id_with_no_body_and_no_keys(self):
-		nokash, http = client(recorded("status_success"))
-		nokash.check_status(TRANSACTION_ID, ATTEMPT_ID)
+	def test_the_call_is_check_status_611_with_the_key_in_the_form(self):
+		nokash, http = client(recorded("status_611_success"))
+		nokash.check_status(TRANSACTION_ID_611, ATTEMPT_ID)
 
 		call = http.calls[0]
 		self.assertEqual(
-			(call.method, call.url, call.kwargs["params"]),
-			(
-				"POST",
-				"https://api.nokash.app/lapas-on-trans/trans/310/status-request",
-				{"transaction_id": TRANSACTION_ID},
-			),
+			(call.method, call.url),
+			("POST", "https://api.nokash.app/lapas-on-trans/trans/611/status-request"),
 		)
-		self.assertNotIn("json", call.kwargs)
+		# In the body: a URL ends up in the message of a failed call, and so in a log.
 		self.assertEqual(
-			call.kwargs["headers"],
-			{"Content-Type": "application/json", "X-NK-Integration": CONFIG.integration_key},
+			call.kwargs["data"], {"i_space_key": CONFIG.i_space_key, "transaction_id": TRANSACTION_ID_611}
 		)
+		self.assertNotIn("params", call.kwargs)
+		self.assertNotIn("json", call.kwargs)
+		self.assertEqual(call.kwargs["headers"], {"X-NK-Integration": CONFIG.integration_key})
+		self.assertFalse(call.kwargs["allow_redirects"])
+
+	def test_a_failed_call_leaves_the_key_out_of_the_traceback(self):
+		# What requests says of a failed call: the address it went to, and what went with it.
+		leaky = requests.ConnectionError(
+			f"Max retries exceeded with url: /611?i_space_key={CONFIG.i_space_key}"
+		)
+		with self.assertRaises(NokashError) as failed:
+			client(leaky)[0].check_status(TRANSACTION_ID_611, ATTEMPT_ID)
+
+		logged = "".join(traceback.format_exception(failed.exception))
+		self.assertNotIn(CONFIG.i_space_key, logged)
+		self.assertNotIn(CONFIG.integration_key, logged)
+
+	def test_a_403_is_a_refusal_of_the_key_and_any_other_failure_is_not(self):
+		for name, refused in (
+			("status_611_refused", True),
+			("status_611_no_key", False),
+			("server_error", False),
+		):
+			with self.subTest(name), self.assertRaises(NokashError) as failed:
+				client(recorded(name))[0].check_status(TRANSACTION_ID_611, ATTEMPT_ID)
+			self.assertEqual(failed.exception.refused, refused)
+		with self.assertRaises(NokashError) as failed:
+			client(requests.ReadTimeout())[0].check_status(TRANSACTION_ID_611, ATTEMPT_ID)
+		self.assertFalse(failed.exception.refused)
+
+	def test_a_recorded_611_success_is_read(self):
+		result = client(recorded("status_611_success"))[0].check_status(TRANSACTION_ID_611, ATTEMPT_ID)
+		self.assertEqual(
+			(result.status, result.currency, result.transaction_id), (lc.SUCCEEDED, "XAF", TRANSACTION_ID_611)
+		)
+		# "1000.0", as Nokash writes it: the same amount as the session's 1000.
+		self.assertTrue(lc.amounts_match(1000, result.amount))
+		self.assertFalse(lc.amounts_match(1000, "1000.5"))
 
 	def test_transaction_statuses(self):
 		cases = {
@@ -293,9 +329,12 @@ class TestStatus(unittest.TestCase):
 		self.assertTrue(lc.amounts_match(1000.0, result.amount))
 		self.assertEqual((result.currency, result.transaction_id), ("XAF", TRANSACTION_ID))
 
-	def test_an_answer_that_names_no_transaction_is_still_read(self):
-		result = client(answering(id=None, orderId=None))[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
-		self.assertEqual(result.status, lc.SUCCEEDED)
+	def test_an_answer_that_names_no_transaction_or_no_attempt_proves_nothing(self):
+		for field in ("id", "orderId"):
+			for value in (None, ""):
+				with self.subTest(field=field, value=value), self.assertRaises(NokashError) as failed:
+					client(answering(**{field: value}))[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
+				self.assertEqual(failed.exception.code, f"{field} mismatch")
 
 	def test_anything_else_is_a_failed_check(self):
 		cases = {
@@ -304,7 +343,7 @@ class TestStatus(unittest.TestCase):
 			"unknown transaction status": (recorded("status_unknown_value"), 200, "status REVERSED"),
 			"unreadable body": (recorded("not_json"), 200, None),
 			"a JSON list": (FakeResponse(200, ["REQUEST_OK"]), 200, None),
-			"no data": (FakeResponse(200, {"status": "REQUEST_OK", "data": None}), 200, "status None"),
+			"no data": (FakeResponse(200, {"status": "REQUEST_OK", "data": None}), 200, "id mismatch"),
 			"server error": (recorded("server_error"), 503, "REQUEST_BAD_INFOS"),
 			"REQUEST_OK under an error code": (
 				FakeResponse(500, RECORDED["status_success"]["body"]),
@@ -320,3 +359,85 @@ class TestStatus(unittest.TestCase):
 			with self.subTest(case), self.assertRaises(NokashError) as failed:
 				client(answer)[0].check_status(TRANSACTION_ID, ATTEMPT_ID)
 			self.assertEqual((failed.exception.http_status, failed.exception.code), (http_status, code))
+
+
+CALLBACK_KEY = "fake-i-key"
+# The body and signed string of the callback specification's example, signed with the key above.
+CALLBACK_BODY = {
+	"id": TRANSACTION_ID,
+	"orderId": "CMD-2026-000123",
+	"amount": "1000",
+	"status": "SUCCESS",
+	"statusReason": None,
+	"initiatedAt": "2026-11-12T10:15:02",
+	"phone": "237690000000",
+}
+CALLBACK_SIGNATURE = "221bf956177017dd1bef1dc5bc7903d54580073064c7cf3f05fd3a4ceda3ce8c"
+CALLBACK_HEADER = f"t=1762956000,s={CALLBACK_SIGNATURE}"
+
+
+class TestCallbackSignature(unittest.TestCase):
+	def valid(self, body=CALLBACK_BODY, header=CALLBACK_HEADER, key=CALLBACK_KEY):
+		return callback_signature_valid(body, header, key)
+
+	def test_the_specifications_example_is_valid(self):
+		self.assertTrue(self.valid())
+
+	def test_only_s_is_the_signature_and_t_is_not_signed(self):
+		for header in (
+			f"s={CALLBACK_SIGNATURE}",
+			f"t=1,s={CALLBACK_SIGNATURE}",
+			f"t=999999999999,s={CALLBACK_SIGNATURE}",
+			f" t=1762956000 , s={CALLBACK_SIGNATURE}",
+		):
+			with self.subTest(header=header):
+				self.assertTrue(self.valid(header=header))
+
+	def test_whatever_is_signed_cannot_be_changed(self):
+		for field, forged in (
+			("id", "nk_tx_other"),
+			("amount", "5000"),
+			("orderId", "CMD-2026-000999"),
+			("status", "FAILED"),
+			("phone", "237690000001"),
+		):
+			with self.subTest(field=field):
+				self.assertFalse(self.valid(body={**CALLBACK_BODY, field: forged}))
+
+	def test_what_is_not_signed_is_not_trusted_but_does_not_break_the_signature(self):
+		body = {**CALLBACK_BODY, "statusReason": "changed", "initiatedAt": "2020-01-01T00:00:00"}
+		self.assertTrue(self.valid(body=body))
+
+	def test_a_missing_value_is_written_null(self):
+		body = {**CALLBACK_BODY, "id": None}
+		signature = "224ed669b8a274f4efbf8e2b6785fabd8623ac25c5f1a07828afba71d5c4dd5d"
+		# Signed with phone null and id present: not this body.
+		self.assertFalse(self.valid(body=body, header=f"s={signature}"))
+		self.assertFalse(self.valid(body={**CALLBACK_BODY, "phone": None}, header=f"s={CALLBACK_SIGNATURE}"))
+		self.assertTrue(self.valid(body={**CALLBACK_BODY, "phone": None}, header=f"s={signature}"))
+
+	def test_a_number_is_signed_as_its_digits(self):
+		self.assertTrue(self.valid(body={**CALLBACK_BODY, "amount": 1000}))
+		self.assertFalse(self.valid(body={**CALLBACK_BODY, "amount": 1000.0}))
+		self.assertFalse(self.valid(body={**CALLBACK_BODY, "amount": True}))
+		self.assertFalse(self.valid(body={**CALLBACK_BODY, "amount": ["1000"]}))
+
+	def test_anything_unexpected_is_invalid_and_never_raises(self):
+		no_phone = {k: v for k, v in CALLBACK_BODY.items() if k != "phone"}
+		cases = {
+			"no header": dict(header=None),
+			"empty header": dict(header=""),
+			"no s": dict(header="t=1762956000"),
+			"empty s": dict(header="t=1762956000,s="),
+			"not a header": dict(header="garbage"),
+			"upper-case hex": dict(header=f"s={CALLBACK_SIGNATURE.upper()}"),
+			"non-ASCII s": dict(header="s=é" * 32),
+			"another key": dict(key="another-key"),
+			"no key": dict(key=""),
+			"body is a list": dict(body=[CALLBACK_BODY]),
+			"body is None": dict(body=None),
+			"a bank callback, which is not offered": dict(body=no_phone),
+		}
+		for name, change in cases.items():
+			with self.subTest(name):
+				self.assertFalse(self.valid(**change))

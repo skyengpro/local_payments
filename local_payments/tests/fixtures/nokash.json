@@ -1,5 +1,5 @@
 {
-	"_source": "Rebuilt from docs/openAPI/nokash-payin-spec.json, not captured. status_pending, status_canceled and status_timeout are derived from its status examples and status_reasons_observed. Status answers carry the tests' transaction and attempt ids. Replace them with captures, keys and numbers removed.",
+	"_source": "Rebuilt from docs/openAPI/nokash-payin-spec.json, not captured. status_pending, status_canceled and status_timeout are derived from its status examples and status_reasons_observed. Status answers carry the tests' transaction and attempt ids. Replace them with captures, keys and numbers removed. status_611_success, status_611_refused and status_611_no_key are captures of Check Status 611 from the integration phase (2026-11-16/17), with the ids and the number replaced.",
 	"signature_vector": {
 		"i_space_key": "test_integrator_space_key",
 		"app_space_key": "test_app_space_key",
@@ -203,5 +203,43 @@
 	"not_json": {
 		"status": 200,
 		"body": null
+	},
+	"status_611_success": {
+		"status": 200,
+		"body": {
+			"status": "REQUEST_OK",
+			"data": {
+				"amount": "1000.0",
+				"statusReason": null,
+				"orderId": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
+				"phone": "237100000001",
+				"id": "nk_tx_xm5ojhd01lkv06c0bjvu",
+				"status": "SUCCESS"
+			},
+			"message": "Status de la transaction: SUCCESS",
+			"code": null
+		}
+	},
+	"status_611_refused": {
+		"status": 403,
+		"body": {
+			"status": "REQUEST_ERROR",
+			"data": null,
+			"message": "Unauthorized",
+			"code": null
+		}
+	},
+	"status_611_no_key": {
+		"status": 400,
+		"body": {
+			"status": "API_ERROR_HANDLING",
+			"data": {
+				"status": "BAD_REQUEST",
+				"message": "Missing Parameters",
+				"errors": ["i_space_key parameter is missing"]
+			},
+			"message": "i_space_key parameter is missing ",
+			"code": null
+		}
 	}
 }

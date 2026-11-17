@@ -331,6 +331,14 @@ msgstr ""
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr ""
 
+#: local_payments/gateway.py
+msgid "This is not an MTN number. Enter an MTN Mobile Money number."
+msgstr ""
+
+#: local_payments/gateway.py
+msgid "This is not an Orange number. Enter an Orange Money number."
+msgstr ""
+
 #. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
 #. Label of the environment (Select) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json

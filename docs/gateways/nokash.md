@@ -16,7 +16,12 @@ the operator and waiting happen on the local `local_payment_checkout` page.
 ## Merchant prerequisites
 
 - A Nokash account, with an integrator key and an app key.
-- Production keys for the notification, which Nokash does not send in the sandbox.
+- Production keys for the notification, which Nokash does not send in the sandbox. Before Nokash has the
+  site's addresses, the production keys work only with the `X-NK-Integration` header (the `integration_key`
+  field): any IP address is accepted, each transaction is capped at 1,000 XAF, and only the integration
+  routes are open (authentication, payin, payout, balance, Check Status 611). Once Nokash has declared the
+  addresses, the same calls go without the header and without the cap: empty the field.
+- The sandbox keys simulate payins, which complete by themselves. They send no notification.
 - For the notification, a public `https://` address in the site's `host_name`.
 
 ## Configuration
@@ -54,8 +59,8 @@ Production.
 | Operation | Request                                                                                                                                                                                                                                                             | Useful response                                                     |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | Payin     | `POST {api_base_url}/lapas-on-trans/trans/api-payin-request/407`. Header `hmac-signature`. Body: `i_space_key`, `app_space_key`, `payment_type`, `country`, `payment_method`, `order_id` (the `attempt_id`), `amount`, `user_data.user_phone` | `status`, `data.id`                                             |
-| Status    | `POST {api_base_url}/lapas-on-trans/trans/310/status-request?transaction_id=<data.id>`, no body                                                                                                                                                                   | `status`, `data.status`, `data.statusReason`, `data.amount` |
-| Incoming notification | `POST` on `callback_url`, `/api/method/local_payments.api.nokash_callback?attempt=<attempt_id>`, when the transaction leaves `PENDING`                                                                                                                | Serves only as a trigger                                            |
+| Status (Check Status 611) | `POST {api_base_url}/lapas-on-trans/trans/611/status-request`. Form body: `i_space_key`, `transaction_id` (`data.id`). Never in the query string: see "Secrets". No JSON body, no GET                                                                                                                                                                   | `status`, `data.id`, `data.orderId`, `data.status`, `data.statusReason`, `data.amount` (a string, `"1000.0"`) |
+| Incoming notification | `POST` on `callback_url`, `/api/method/local_payments.api.nokash_callback?attempt=<attempt_id>`, when the transaction reaches a final status. Header `hmac-signature: t=<seconds>,s=<hex>`. Body: `id`, `orderId`, `amount`, `status`, `statusReason`, `initiatedAt`, `phone` | Serves only as a trigger, once verified. 401 when the signature or the attempt cannot be verified |
 
 Every answer has the same envelope: `status` (`REQUEST_OK`, `REQUEST_BAD_INFOS`
 or any other value), `message`, and `data`, filled only on `REQUEST_OK`. The
@@ -78,7 +83,8 @@ and leaves the attempt status to its caller.
 | `TIMEOUT`                                                                                                  | `Expired`                                      | No response from the operator in time.                                                                                          |
 | `PENDING` after `pending_timeout_minutes`                                                                | `Unresolved`                                   | Queried thereafter at decreasing frequency.                                                                                     |
 | No Nokash id on the attempt                                                                                  | `Pending`, then `Unresolved` at the deadline | No call goes out. See "Lost id".                                                                                                |
-| Anything other than `REQUEST_OK` on status, an unknown transaction status, an unreadable body, or an answer about another `id` or `orderId` | No change, then `Unresolved` at the deadline | Reported as an error, logged, queried again later. The failed query proves nothing about the payment. |
+| Anything other than `REQUEST_OK` on status, an unknown transaction status, an unreadable body, or an answer whose `id` or `orderId` is missing or is not the attempt's | No change, then `Unresolved` at the deadline | Reported as an error, logged, queried again later. The failed query proves nothing about the payment. |
+| `403` on status | Same, and the managers are alerted once per attempt | The key is not accepted, or the transaction is not in its space. No retry fixes it: check the keys and the environment. |
 
 `provider_status` keeps the status and `statusReason` together, for instance
 `FAILED: Insufficient customer balance`. The reason is only copied, never used
@@ -102,14 +108,14 @@ sequenceDiagram
     S-->>P: waiting state
     N->>T: payment request
     T->>N: approval with PIN code
-    loop every 5 seconds
+    loop every 5 seconds, Nokash called at most every 30 seconds
         P->>S: get_status
-        S->>N: POST status-request with data.id
+        S->>N: POST 611/status-request with i_space_key and data.id
         N-->>S: PENDING, then SUCCESS
     end
     opt production keys and send_callback checked
-        N->>S: POST nokash_callback?attempt=attempt_id
-        S->>S: reconcile queued, the body is not read
+        N->>S: POST nokash_callback?attempt=attempt_id, signed
+        S->>S: signature and order id verified, reconcile queued
     end
     S->>S: amount matches, session Paid, then on_payment_authorized
     S-->>P: redirect to payment-success
@@ -138,8 +144,10 @@ sequenceDiagram
   `validate_minimum_transaction_amount()`, which ERPNext calls first. Nokash
   still answers `REQUEST_BAD_INFOS` below its own minimum, and that ends the
   attempt in `Error`.
-- **Number.** Sent as the national number, without the country code. The
-  attempt keeps the full number.
+- **Number.** Sent as `237` followed by the 9-digit national number, as the
+  payin answers `REQUEST_BAD_INFOS` ("Erreur 3") to the national number alone.
+  The prefix must also belong to the chosen operator: a `69…` number is
+  refused for MTN MoMo. The attempt keeps the same full number.
 - **Operator.** The page offers the operators checked on the settings, with no
   default, so a request is not sent to the wrong operator by accident. With one
   operator checked, the page asks nothing. The choice is kept in the attempt's
@@ -149,21 +157,29 @@ sequenceDiagram
 - **Secrets.** The keys travel in the body, so the client removes them, with
   the signature, from what it hands over for logging, including an answer that
   would repeat them. Redirects are not followed: a `307` would send the keys
-  to another address.
+  to another address. The status call sends `i_space_key` in the form body, never
+  in the URL, and a failed call raises without its transport error: that error's
+  message holds the URL, and the Error Log would keep it.
 - **Network log.** One `Integration Request` per attempt: the payin URL, the
   body without the keys, and Nokash's status code and body, cut at 2,000
   characters. `Completed` when Nokash accepted the payin, `Failed` otherwise.
   Status queries are not logged there.
 - **Initiation window.** As with MTN, no status query goes out before the payin
   has answered, or before the window ends if the process died.
+- **Rate.** Nokash allows one status call every 30 seconds per transaction.
+  `NokashSettings.min_check_interval` sets it for page polling, notifications
+  and the scheduler alike, since all of them go through `reconcile()`.
 - **Notification.** Nokash sends it with production keys only, so the outcome
   must never depend on it. `callback_url` goes out only when `send_callback` is
   checked and the site has a usable `host_name`, and it carries the `attempt_id`,
-  never the session token. The endpoint reads the attempt from the query string
-  and never the body, which proves nothing and is not signed as far as we know.
-  It queues `reconcile()`, at most one job per attempt. An unknown or settled
-  attempt gets the same empty answer and nothing is queued. A notification cannot
-  recover a lost id, since its body is not read.
+  never the session token. The endpoint verifies the signature with the key of
+  the attempt's own gateway (HMAC-SHA256 over
+  `id:amount:orderId:status:phone`, the values as received, `t` ignored), and
+  that `orderId` and `id` are the attempt's. Anything it cannot verify, an
+  unknown attempt included, gets 401 and queues nothing. A verified notification
+  with a final status and a running attempt queues `reconcile()`, at most one
+  job per attempt. The body is read only for that check: the outcome is what
+  the status query says. A notification cannot recover a lost id.
 
 ## Known errors
 
@@ -179,22 +195,23 @@ sequenceDiagram
 
 | Point                                              | Assumption made                                                                | Effect if the assumption is wrong                                  |
 | -------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| Authentication of the status call                  | None: the sandbox's real API mode also sends no credentials to `api.nokash.app` | Add it in `NokashClient.check_status`.                           |
+| Check Status 611 with our keys                     | Works, as Nokash fixed it on 2026-11-16: the answer carries `id`, `orderId`, `amount`, `status` | Not re-run by us yet: `api.nokash.app` was unreachable on 2026-11-17. |
 | HMAC encoding                                      | Lowercase hexadecimal, the sandbox's default among hex, HEX and base64         | One line in `sign`, and the test vector.                         |
 | Shape of `data.id` and `data.orderId` on status    | Repeat the values sent, as in the sandbox                                      | A mismatch leaves every attempt `Unresolved`: fix the comparison. |
-| Signature of the notification                      | None shown in the sandbox, so none is checked                                  | None for the outcome: the body is never read. A signature would only filter forged triggers. |
-| Notification in practice                           | Sent as the specification says, with production keys only                      | None for the outcome: page polling and the scheduler still settle it. |
+| Signature of the notification                      | As in "Callback signature", Nov. 2026, built from the specification's rule     | A bug refuses genuine notifications. None for the outcome: polling and the scheduler still settle it. Untestable without production keys. |
+| Notification in practice                           | Sent as the specification says, with production keys only (and the integration header) | None for the outcome: page polling and the scheduler still settle it. |
+| Answer above the rate, and callback retries        | Not documented                                                                 | Ask Nokash: what a call above 30 seconds gets, and whether a 401 or a 5xx makes it send the notification again. |
 | Query string of `callback_url`                     | Nokash calls the address as sent, `?attempt=` included, though the specification's example has none | Every notification gets the empty answer and is ignored. None for the outcome: polling still settles it. |
 | Search for a transaction by `order_id`           | Not available                                                                  | If it exists, a lost id can be recovered automatically.            |
 | Repeated `order_id`                              | Unknown, so a payin is never repeated                                          | None while there is no retry.                                      |
-| Country code in `user_phone`                     | National number only                                                           | One line in the client, and the test vector.                       |
+| Country code in `user_phone`                     | `237` + 9 digits, as the payin requires (confirmed 2026-11-17)                 | None.                                                              |
 | Official HMAC test vector                          | The vector of the specification, computed by us                                | Replace it. If it differs, review the signed string.               |
 | Minimum amount                                     | 200 XAF in the sandbox, the default of `minimum_amount`                        | Adjust the field. A session below Nokash's real minimum ends in a refusal. |
 | Answer to expired keys                             | `REQUEST_BAD_INFOS`, as `api.nokash.app` answered for an unrecognised integrator key on 2026-11-09 (HTTP 200) | With another answer, attempts stay `Initiated` with no id, then alert when they reach their deadline. |
 | Number that does not belong to the chosen operator | `FAILED` on status                                                           | Adapt the mapping if Nokash refuses it at payin.                   |
 | Delay of `TIMEOUT`                               | 15 minutes locally                                                             | Adjust `pending_timeout_minutes`.                                |
 | Test responses                                     | Rebuilt from the specification (`local_payments/tests/fixtures/nokash.json`) | Replace them with captures, keys and numbers removed.              |
-| Server-callable sandbox keys and test numbers      | Not available: the sandbox appears to run entirely in the browser              | Validation probably needs real keys and a real payment of 200 XAF. |
+| Server-callable sandbox keys and test numbers      | Available: the sandbox simulates payins and completes them, with no notification | The notification and a real `SUCCESS` need the production keys with the integration header (1,000 XAF cap). |
 
 ## References
 
@@ -202,3 +219,4 @@ sequenceDiagram
 | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | Nokash sandbox — `nokash.co/sandbox`, transcribed in [`../openAPI/nokash-payin-spec.json`](../openAPI/nokash-payin-spec.json), read on 2026-11-06 | Official, simulated API | Sandbox, Cameroon | Operations, signature, statuses, errors, notification.                                                                               |
 | NOKASH API_PAYIN Documentation v4, July 2024                                                                                                          | Official, superseded    | Not stated        | Callback sent with production keys only. Replaced by the sandbox for the rest (it has no HMAC signature and a minimum of 1 XAF). |
+| NOKASH API Check Status 611 and API Callback signature, November 2026, and Nokash's message of 2026-11-16 | Official | Integration phase, then production | Check Status 611 (key, rate, refusal), signed notification (final statuses only), integration header and its 1,000 XAF cap. See [ADR 0004](../decisions/0004-nokash-authenticated-status-and-signed-callback.md). |

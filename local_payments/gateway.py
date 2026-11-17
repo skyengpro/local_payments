@@ -22,7 +22,13 @@ from payments.utils import create_payment_gateway
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange
-from local_payments.providers.msisdn import normalize_msisdn
+from local_payments.providers.msisdn import (
+	CAMEROON_PREFIX,
+	MTN,
+	ORANGE,
+	is_on_network,
+	normalize_msisdn,
+)
 
 CHECKOUT_PAGE = "local_payment_checkout"
 MTN_MOMO_ICON = "/assets/local_payments/images/operators/mtn_momo.png"
@@ -92,6 +98,17 @@ def callback_base(host_name: str | None, production: bool) -> str | None:
 	return f"{url.scheme}://{url.hostname}" + (f":{port}" if port else "")
 
 
+def site_url(path: str) -> str:
+	"""An address on this site, built from host_name when it is set, else as Frappe's `get_url()` does.
+
+	`get_url()` adds the development server's port to a host_name that has none, so a payer sent to
+	`https://<public name>:8001/...` never arrives. The port is added only outside production mode, which is
+	why the same site works once deployed.
+	"""
+	base = callback_base(frappe.conf.host_name or frappe.conf.hostname, production=False)
+	return f"{base}{path}" if base else get_url(path)
+
+
 def validate_amount_for_currency(amount, currency: str) -> None:
 	"""Reject amounts that aren't finite and positive, and fractions in a currency with no minor unit."""
 	amount = flt(amount)
@@ -158,6 +175,29 @@ class LocalPaymentGateway:
 				_("Enter your mobile money number: {0} digits, with or without +{1}.").format(length, prefix)
 			)
 		return msisdn
+
+	def payer_network(self, provider_data: dict) -> str | None:
+		"""The mobile network (`MTN` or `ORANGE`) this attempt's number has to belong to, if the gateway knows it.
+
+		A gateway that sends the payment request to one operator says which, so a number of another network
+		is refused with a clear message instead of failing at the provider.
+		"""
+		return None
+
+	def validate_payer_network(self, msisdn: str, provider_data: dict) -> None:
+		"""Raises a ValidationError, shown under the field, when the number is not on the operator's network.
+
+		Only Cameroon numbers have prefixes to check: another country code, as in MTN's sandbox, is left alone.
+		"""
+		network = self.payer_network(provider_data)
+		if not network or self.msisdn_prefix != CAMEROON_PREFIX:
+			return
+		if is_on_network(msisdn, CAMEROON_PREFIX, network):
+			return
+		if network == MTN:
+			frappe.throw(_("This is not an MTN number. Enter an MTN Mobile Money number."))
+		if network == ORANGE:
+			frappe.throw(_("This is not an Orange number. Enter an Orange Money number."))
 
 	def callback_url(self, attempt_id: str) -> str | None:
 		"""None when the site has no address the provider can call. Status checks then find the outcome on their own."""
@@ -293,12 +333,19 @@ class LocalPaymentGateway:
 		token = self._find_open_session(kwargs, amount, currency) or self._create_session(
 			kwargs, amount, currency
 		)
-		return get_url(f"/{CHECKOUT_PAGE}?{urlencode({'token': token})}")
+		return site_url(f"/{CHECKOUT_PAGE}?{urlencode({'token': token})}")
 
 	def _find_open_session(self, kwargs, amount, currency) -> str | None:
-		return frappe.db.get_value(
+		"""The token of an Open session made for this very request, or None.
+
+		Same reference, amount and currency is not enough: the session keeps the consumer's request, and
+		`reconcile()` hands it back to the consumer once paid. Another payer, or another request of the same
+		payer, must never inherit it: the money would be credited to whoever made the first one. So the whole
+		request has to be the same.
+		"""
+		candidates = frappe.get_all(
 			"Local Payment",
-			{
+			filters={
 				"status": "Open",
 				"reference_doctype": kwargs.get("reference_doctype"),
 				"reference_docname": kwargs.get("reference_docname"),
@@ -306,7 +353,13 @@ class LocalPaymentGateway:
 				"amount": amount,
 				"currency": currency,
 			},
-			"token",
+			fields=["token", "request_data"],
+			order_by="creation desc",
+		)
+		# Through JSON, as it was stored.
+		asked = frappe.parse_json(frappe.as_json(kwargs))
+		return next(
+			(row.token for row in candidates if frappe.parse_json(row.request_data or "{}") == asked), None
 		)
 
 	def _create_session(self, kwargs, amount, currency) -> str:

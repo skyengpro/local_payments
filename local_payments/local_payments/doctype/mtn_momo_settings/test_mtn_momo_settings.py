@@ -167,6 +167,22 @@ class TestMTNMoMoSettings(IntegrationTestCase):
 			self.assertEqual(meta.get_field(fieldname).fieldtype, "Password", fieldname)
 		self.assertEqual({perm.role for perm in meta.permissions}, {"System Manager"})
 
+	def test_only_an_mtn_number_is_taken_and_the_refusal_says_so(self):
+		for number in ("670000001", "650000001", "654000001", "681000001"):
+			with self.subTest(number):
+				self.settings.validate_payer_network(self.settings.payer_msisdn(number), {})
+		for number in ("690000001", "655000001", "659000001", "620000001"):
+			with (
+				self.subTest(number),
+				self.assertRaisesRegex(frappe.ValidationError, "This is not an MTN number"),
+			):
+				self.settings.validate_payer_network(self.settings.payer_msisdn(number), {})
+
+	def test_a_country_other_than_cameroon_is_left_alone(self):
+		# MTN's sandbox, for one, has its own test numbers.
+		other = make_settings(gateway_name="momo-other", msisdn_prefix="46", msisdn_national_length=9)
+		other.validate_payer_network(other.payer_msisdn("733123450"), {})
+
 	def test_empty_pending_timeout_falls_back_to_the_default(self):
 		self.settings.pending_timeout_minutes = None
 		self.settings.save()

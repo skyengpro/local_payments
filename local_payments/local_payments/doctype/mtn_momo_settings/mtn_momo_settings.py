@@ -14,6 +14,7 @@ from local_payments import lifecycle as lc
 from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
+from local_payments.providers.msisdn import MTN
 from local_payments.providers.mtn_momo import InitiationOutcome, MtnMomoClient, MtnMomoConfig
 
 SANDBOX_HOST = "sandbox.momodeveloper.mtn.com"
@@ -58,6 +59,9 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 
 	def payer_icon(self) -> str:
 		return MTN_MOMO_ICON
+
+	def payer_network(self, provider_data: dict) -> str:
+		return MTN
 
 	@property
 	def token_cache_key(self) -> str:

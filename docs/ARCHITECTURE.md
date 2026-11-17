@@ -134,7 +134,8 @@ the phone, sits behind a local page served by the application. Orange Money
 Local/USSD follows the same principle behind the same page, and so does
 Nokash, which adds the choice of operator to that page. Options ruled out and
 consequences: [ADR 0001](decisions/0001-native-payments-contract.md),
-[ADR 0003](decisions/0003-nokash-aggregator.md).
+[ADR 0003](decisions/0003-nokash-aggregator.md),
+[ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md).
 
 ### D2. `get_payment_url()` never contacts the provider
 
@@ -167,17 +168,18 @@ that response contains.
 *Why.* The parameters of a return URL can be modified by the payer. The MTN
 callback is sent only once, with no retry, and carries no secret. A query
 authenticated by the merchant is the only signal that no one else can
-produce. Nokash shows no authentication on this query in its sandbox: the site
-still calls a configured address over TLS, so the answer cannot be forged, but
-how it is authenticated in production must be known before going live
-([ADR 0003](decisions/0003-nokash-aggregator.md)).
+produce. Nokash's status call (Check Status 611) is authenticated by the
+integrator key, and its callback is signed. The signature only decides whether
+a callback may trigger a check: the key is shared by too many operations to
+prove a payment ([ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md)).
 
 *Ruled out.* Confirming a payment based on the content of a callback or a
 return URL.
 
 *Cost.* One outgoing call per trigger. Two mechanisms bound it: a minimum
 interval between two queries of the same attempt, and `rate_limit` on the
-guest endpoints.
+guest endpoints. The interval is 10 seconds, or more when the provider asks
+for more: Nokash allows one call every 30 seconds per transaction.
 
 ### D4. The fact of payment is recorded before the business effect
 
@@ -657,3 +659,4 @@ Nothing else varies from one site to another.
 - [`decisions/0001-native-payments-contract.md`](decisions/0001-native-payments-contract.md)
 - [`decisions/0002-payment-request-authorization-hook.md`](decisions/0002-payment-request-authorization-hook.md)
 - [`decisions/0003-nokash-aggregator.md`](decisions/0003-nokash-aggregator.md)
+- [`decisions/0004-nokash-authenticated-status-and-signed-callback.md`](decisions/0004-nokash-authenticated-status-and-signed-callback.md)

@@ -3,6 +3,7 @@
 
 from collections.abc import Callable
 from dataclasses import asdict
+from datetime import timedelta
 
 import frappe
 from frappe import _
@@ -10,9 +11,11 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt
 
 from local_payments import lifecycle as lc
+from local_payments import reconcile as rc
 from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
+from local_payments.providers.msisdn import MTN, ORANGE
 from local_payments.providers.nokash import (
 	CURRENCY,
 	MSISDN_NATIONAL_LENGTH,
@@ -23,6 +26,8 @@ from local_payments.providers.nokash import (
 	NokashClient,
 	NokashConfig,
 	NokashData,
+	NokashError,
+	callback_signature_valid,
 )
 
 CALLBACK_PATH = "/api/method/local_payments.api.nokash_callback"
@@ -41,6 +46,8 @@ class NokashSettings(LocalPaymentGateway, Document):
 
 	provider_name = "Nokash"
 	initiation_name = "Payin"
+	# Nokash asks for at most one status call every 30 seconds per transaction.
+	min_check_interval = timedelta(seconds=30)
 	callback_path = CALLBACK_PATH
 	# Fixed for Cameroon, so these are not fields.
 	currency = CURRENCY
@@ -64,7 +71,33 @@ class NokashSettings(LocalPaymentGateway, Document):
 		if not transaction_id:
 			# The payin's answer never arrived. Pending lets the attempt reach its deadline.
 			return ProviderResult(lc.PENDING, provider_status="No Nokash transaction id", no_reference=True)
-		return self.nokash_client().check_status(transaction_id, attempt_id)
+		try:
+			return self.nokash_client().check_status(transaction_id, attempt_id)
+		except NokashError as error:
+			if error.refused:
+				self.alert_refused(attempt_id)
+			raise
+
+	def alert_refused(self, attempt_id: str) -> None:
+		"""Tell the managers, once per attempt, that Nokash refused our key: no check can pass until it is fixed."""
+		filters = {"attempt_id": attempt_id, "parenttype": "Local Payment"}
+		row = frappe.db.get_value("Local Payment Attempt", filters, ("parent", "alerted"), as_dict=True)
+		if not row or row.alerted:
+			return
+		# Kept only if the alert goes out, as in reconcile().
+		frappe.db.set_value("Local Payment Attempt", filters, "alerted", 1, update_modified=False)
+		rc.alert_managers(row.parent, attempt_id, "provider_refused")
+
+	def verify_callback(
+		self, body: dict, header: str | None, attempt_id: str, transaction_id: str | None
+	) -> bool:
+		"""True for a notification Nokash signed with our key, about this very attempt."""
+		if not callback_signature_valid(body, header, self.get_password("i_space_key")):
+			return False
+		if body.get("orderId") != attempt_id:
+			return False
+		# An attempt that never got its id can't be compared: the signature and the order id have to do.
+		return not transaction_id or body.get("id") == transaction_id
 
 	def initiate(self, attempt_id: str, session, msisdn: str, provider_data: dict) -> Initiated:
 		exchanges = []
@@ -118,6 +151,9 @@ class NokashSettings(LocalPaymentGateway, Document):
 		if operator not in offered:
 			frappe.throw(_("Choose your mobile money operator."))
 		return asdict(NokashData(operator))
+
+	def payer_network(self, provider_data: dict) -> str | None:
+		return {MTN_MOMO: MTN, ORANGE_MONEY: ORANGE}.get(NokashData(**provider_data).operator)
 
 	def offered_operators(self) -> list[str]:
 		return [operator for operator, field in OPERATOR_FIELDS.items() if cint(self.get(field))]

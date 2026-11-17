@@ -1,7 +1,11 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
+import hashlib
+import hmac
 import json
+import uuid
+from datetime import timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -39,6 +43,10 @@ HTTP = "local_payments.providers.nokash.requests.Session"
 ATTEMPT_ID = "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11"
 MSISDN = "237000000001"
 NATIONAL = "000000001"
+# Numbers on each network, as Cameroon assigns them: 67 is MTN, 69 is Orange.
+MTN_NUMBER = "670000001"
+ORANGE_NUMBER = "690000001"
+NUMBER_OF = {MTN_MOMO: MTN_NUMBER, ORANGE_MONEY: ORANGE_NUMBER}
 TRANSACTION_ID = "nk_tx_xm5ojhd01lkv06c0bjvu"
 I_SPACE_KEY = "fake-i-key"
 APP_SPACE_KEY = "fake-app-key"
@@ -242,14 +250,143 @@ class TestNokashSettings(IntegrationTestCase):
 			http.return_value.request.return_value = recorded("status_success")
 			rc.reconcile(attempt_id)
 
-		self.assertEqual(
-			http.return_value.request.call_args.kwargs["params"], {"transaction_id": TRANSACTION_ID}
-		)
+		call = http.return_value.request.call_args
+		self.assertTrue(call.args[1].endswith("/lapas-on-trans/trans/611/status-request"))
+		# The key travels in the form body, never in the URL.
+		self.assertEqual(call.kwargs["data"], {"i_space_key": I_SPACE_KEY, "transaction_id": TRANSACTION_ID})
+		self.assertNotIn("params", call.kwargs)
 		session = reload(session)
 		row = session.attempts[0]
 		self.assertEqual((session.status, session.provider_transaction_id), ("Paid", TRANSACTION_ID))
 		self.assertEqual((row.status, row.provider_transaction_id), ("Succeeded", TRANSACTION_ID))
 		self.assertFalse(row.amount_mismatch)
+
+	def test_nokash_gets_at_most_one_status_call_every_30_seconds_per_attempt(self):
+		self.assertEqual(rc.min_check_interval(GATEWAY), timedelta(seconds=30))
+		self.assertEqual(rc.min_check_interval(None), rc.MIN_CHECK_INTERVAL)
+
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		for seconds_ago, asked in ((20, False), (31, True)):
+			with self.subTest(seconds_ago=seconds_ago):
+				frappe.db.set_value(
+					"Local Payment Attempt",
+					{"attempt_id": ATTEMPT_ID},
+					"last_checked_on",
+					add_to_date(now_datetime(), seconds=-seconds_ago),
+					update_modified=False,
+				)
+				frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+				with patch(HTTP) as http:
+					http.return_value.request.return_value = recorded_for("status_pending", ATTEMPT_ID)
+					rc.reconcile(ATTEMPT_ID)
+				self.assertEqual(http.return_value.request.called, asked)
+
+		# The next check is not due before the interval is over, so the scheduler leaves it alone until then.
+		row = reload(session).attempts[0]
+		self.assertGreaterEqual(row.next_check_on - row.last_checked_on, timedelta(seconds=30))
+
+	def test_a_refused_key_alerts_the_managers_once_and_leaves_the_attempt_to_its_deadline(self):
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		alerts = {"document_type": "Local Payment", "document_name": session.name}
+		for check in (1, 2):
+			with self.subTest(check=check):
+				frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+				with patch(HTTP) as http, self.assertRaises(NokashError) as refused:
+					http.return_value.request.return_value = recorded("status_611_refused")
+					rc.reconcile(ATTEMPT_ID)
+				self.assertTrue(refused.exception.refused)
+				let_the_check_interval_pass(ATTEMPT_ID)
+
+				self.assertEqual(reload(session).attempts[0].status, "Pending")
+				self.assertEqual(frappe.db.count("Notification Log", alerts), 1)
+
+	def test_a_server_error_is_not_a_refused_key_and_alerts_nobody(self):
+		session = self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- reconcile() runs its own transactions
+		with patch(HTTP) as http, self.assertRaises(NokashError):
+			http.return_value.request.return_value = recorded("server_error")
+			rc.reconcile(ATTEMPT_ID)
+		self.assertEqual(
+			frappe.db.count(
+				"Notification Log", {"document_type": "Local Payment", "document_name": session.name}
+			),
+			0,
+		)
+
+	def signed(self, body, key=I_SPACE_KEY):
+		signed = ":".join(
+			"null" if body.get(name) is None else str(body[name])
+			for name in ("id", "amount", "orderId", "status", "phone")
+		)
+		return f"t=1762956000,s={hmac.new(key.encode(), signed.encode(), hashlib.sha256).hexdigest()}"
+
+	def notification(self, **changes):
+		return {
+			"id": TRANSACTION_ID,
+			"orderId": ATTEMPT_ID,
+			"amount": "1000",
+			"status": "SUCCESS",
+			"statusReason": None,
+			"phone": MSISDN,
+			**changes,
+		}
+
+	def test_a_notification_is_verified_with_the_gateways_own_key_and_must_be_about_the_attempt(self):
+		body = self.notification()
+		verified = self.settings.verify_callback
+
+		self.assertTrue(verified(body, self.signed(body), ATTEMPT_ID, TRANSACTION_ID))
+		# An attempt that never got its id can only be compared by order id.
+		self.assertTrue(verified(body, self.signed(body), ATTEMPT_ID, None))
+
+		forged = {**body, "status": "FAILED"}
+		cases = {
+			"signed with another key": (
+				body,
+				self.signed(body, key="not-our-key"),
+				ATTEMPT_ID,
+				TRANSACTION_ID,
+			),
+			"body changed after signing": (forged, self.signed(body), ATTEMPT_ID, TRANSACTION_ID),
+			"genuine, about another attempt": (body, self.signed(body), str(uuid.uuid4()), TRANSACTION_ID),
+			"genuine, about another transaction": (body, self.signed(body), ATTEMPT_ID, "nk_tx_other"),
+			"no signature": (body, None, ATTEMPT_ID, TRANSACTION_ID),
+		}
+		for case, args in cases.items():
+			with self.subTest(case):
+				self.assertFalse(verified(*args))
+
+	def test_a_signed_notification_queues_a_check_and_a_forged_one_is_refused(self):
+		self.session(
+			{"status": "Pending", "attempt_id": ATTEMPT_ID, "provider_transaction_id": TRANSACTION_ID}
+		)
+		body = self.notification()
+		for case, header, queued in (
+			("signed", self.signed(body), True),
+			("signed with another key", self.signed(body, key="not-our-key"), False),
+			("not signed", None, False),
+		):
+			with self.subTest(case):
+				set_request(
+					method="POST",
+					path="/api/method/local_payments.api.nokash_callback",
+					query_string=f"attempt={ATTEMPT_ID}",
+					data=json.dumps(body),
+					content_type="application/json",
+					headers={"hmac-signature": header} if header else {},
+				)
+				frappe.local.request_ip = "127.0.0.1"
+				frappe.local.response = frappe._dict()
+				with patch.object(frappe, "enqueue") as enqueue:
+					api.nokash_callback()
+				self.assertEqual(enqueue.called, queued)
+				self.assertEqual(frappe.local.response.get("http_status_code"), None if queued else 401)
 
 	def test_a_failed_check_reports_the_error_and_leaves_the_status(self):
 		session = self.session({"status": "Pending", "provider_transaction_id": TRANSACTION_ID})
@@ -389,8 +526,8 @@ class TestNokashSettings(IntegrationTestCase):
 			"too long": ("6000000011", MTN_MOMO),
 			"letters": ("6000000ab", MTN_MOMO),
 			"other country": ("+33600000001", MTN_MOMO),
-			"unknown operator": ("600000001", "AIRTEL"),
-			"no operator": ("600000001", None),
+			"unknown operator": (MTN_NUMBER, "AIRTEL"),
+			"no operator": (MTN_NUMBER, None),
 		}
 		with patch(HTTP) as http:
 			for case, (number, operator) in refused.items():
@@ -398,6 +535,34 @@ class TestNokashSettings(IntegrationTestCase):
 					api.start_attempt(session.token, number, operator)
 		http.return_value.request.assert_not_called()
 		self.assertEqual(reload(session).attempts, [])
+
+	def test_a_number_of_the_other_network_is_refused_by_name_before_anything_is_recorded_or_sent(self):
+		session = self.open_session()
+		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- start_attempt() runs its own transactions
+		cases = {
+			"Orange number on MTN": (ORANGE_NUMBER, MTN_MOMO, "This is not an MTN number"),
+			"Orange 655 on MTN": ("+237 655 000 001", MTN_MOMO, "This is not an MTN number"),
+			"MTN number on Orange": (MTN_NUMBER, ORANGE_MONEY, "This is not an Orange number"),
+			"MTN 650 on Orange": ("650000001", ORANGE_MONEY, "This is not an Orange number"),
+			"MTN 681 on Orange": ("681000001", ORANGE_MONEY, "This is not an Orange number"),
+			"no network's number on MTN": ("620000001", MTN_MOMO, "This is not an MTN number"),
+		}
+		with patch(HTTP) as http:
+			for case, (number, operator, message) in cases.items():
+				with self.subTest(case), self.assertRaisesRegex(frappe.ValidationError, message):
+					api.start_attempt(session.token, number, operator)
+		http.return_value.request.assert_not_called()
+		self.assertEqual(reload(session).attempts, [])
+
+	def test_every_number_on_the_chosen_network_goes_through(self):
+		for operator, numbers in {
+			MTN_MOMO: ("670000001", "650000001", "654000001", "681000001"),
+			ORANGE_MONEY: ("690000001", "655000001", "659000001"),
+		}.items():
+			for number in numbers:
+				with self.subTest(operator=operator, number=number):
+					msisdn = self.settings.payer_msisdn(number)
+					self.settings.validate_payer_network(msisdn, {"operator": operator})
 
 	def test_only_a_payin_refused_by_nokash_alerts_the_managers(self):
 		def start(answer):
@@ -408,7 +573,7 @@ class TestNokashSettings(IntegrationTestCase):
 					http.return_value.request.side_effect = answer
 				else:
 					http.return_value.request.return_value = answer
-				state = api.start_attempt(session.token, "600000001", MTN_MOMO)
+				state = api.start_attempt(session.token, MTN_NUMBER, MTN_MOMO)
 			alerts = frappe.get_all(
 				"Notification Log",
 				{"document_type": "Local Payment", "document_name": session.name},
@@ -443,7 +608,7 @@ class TestNokashSettings(IntegrationTestCase):
 				with patch(HTTP) as http:
 					request = http.return_value.request
 					request.return_value = recorded("payin_accepted")
-					state = api.start_attempt(session.token, "600000001", operator)
+					state = api.start_attempt(session.token, NUMBER_OF[operator], operator)
 					self.assertEqual(state["attempt_status"], lc.INITIATED)
 					sent = request.call_args.kwargs["json"]
 					self.assertEqual((sent["payment_method"], sent["amount"]), (operator, 1000))
