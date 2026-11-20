@@ -551,3 +551,23 @@ class TestSchedulingPolicy(IntegrationTestCase):
 		now = now_datetime()
 		row = frappe._dict(status="Unresolved", expires_on=add_to_date(now, hours=-30))
 		self.assertEqual(rc._next_attempt_check(now, row), now + timedelta(hours=12))
+
+
+class TestConsumerUser(IntegrationTestCase):
+	"""The consumer runs as the user who opened the session, never as a Guest or Administrator owner."""
+
+	def test_runs_as_the_owner_when_it_is_a_real_user(self):
+		session = frappe._dict(owner="Administrator")
+		self.assertEqual(rc._consumer_user(session, "Guest"), "Guest")
+
+		session = frappe._dict(owner="Guest")
+		self.assertEqual(rc._consumer_user(session, "Guest"), "Guest")
+
+		with patch.object(frappe.db, "get_value", return_value=1):
+			self.assertEqual(
+				rc._consumer_user(frappe._dict(owner="payer@example.com"), "Guest"), "payer@example.com"
+			)
+
+	def test_a_disabled_owner_is_not_impersonated(self):
+		with patch.object(frappe.db, "get_value", return_value=0):
+			self.assertEqual(rc._consumer_user(frappe._dict(owner="gone@example.com"), "Guest"), "Guest")

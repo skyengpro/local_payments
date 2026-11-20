@@ -384,10 +384,28 @@ def _call_consumer(session, attempt):
 	)
 	previous = frappe.flags.data
 	frappe.flags.data = frappe._dict(data)
+	previous_user = frappe.session.user
+	frappe.set_user(_consumer_user(session, previous_user))
 	try:
 		return reference.run_method("on_payment_authorized", "Completed")
 	finally:
+		frappe.set_user(previous_user)
 		frappe.flags.data = previous
+
+
+def _consumer_user(session, current: str) -> str:
+	"""Who the consumer runs as: the user who opened the session, when it is a real one.
+
+	Reconciliation is triggered by Guests (the payer's browser, the provider's callback) and by the
+	scheduler, yet some consumers credit `frappe.session.user` (LMS enrols it, and only accepts a
+	payment whose member is the session user). `owner` is set by Frappe when the session is created,
+	never read from a request. Guest and Administrator sessions keep the caller's user: nobody
+	to act as.
+	"""
+	owner = session.owner
+	if owner in ("Guest", "Administrator") or owner == current:
+		return current
+	return owner if frappe.db.get_value("User", owner, "enabled") else current
 
 
 def _record_authorization_failure(session, exc: Exception) -> None:
