@@ -299,6 +299,13 @@ class TestGetStatus(CheckoutTestCase):
 		session = make_session({"status": "Succeeded"}, status="Paid", redirect_to="javascript:alert(1)")
 		self.assertIn("/payment-success?", self.get_status(session)["redirect_url"])
 
+	def test_the_default_exit_url_never_carries_the_development_port(self):
+		session = make_session({"status": "Succeeded"}, status="Paid")
+		conf = {"developer_mode": 1, "webserver_port": 8001, "host_name": "https://shop.example.com"}
+		with patch.dict(frappe.conf, conf):
+			url = self.get_status(session)["redirect_url"]
+		self.assertTrue(url.startswith("https://shop.example.com/payment-success?"), url)
+
 	def test_success_reports_paid_and_where_to_send_the_payer(self):
 		session = make_session({})
 		provider = FakeProvider(ProviderResult("Succeeded", Decimal("5000"), "XAF", "TX-1"))

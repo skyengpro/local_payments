@@ -93,6 +93,7 @@ flowchart LR
     GW -- "returns the page URL" --> CONS
     PAYER --> PAGE --> API
     MTN -. "callback" .-> API
+    NK -. "callback" .-> API
     API --> REC
     SCH --> REC
     REC --> LC
@@ -133,7 +134,8 @@ the phone, sits behind a local page served by the application. Orange Money
 Local/USSD follows the same principle behind the same page, and so does
 Nokash, which adds the choice of operator to that page. Options ruled out and
 consequences: [ADR 0001](decisions/0001-native-payments-contract.md),
-[ADR 0003](decisions/0003-nokash-aggregator.md).
+[ADR 0003](decisions/0003-nokash-aggregator.md),
+[ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md).
 
 ### D2. `get_payment_url()` never contacts the provider
 
@@ -166,17 +168,18 @@ that response contains.
 *Why.* The parameters of a return URL can be modified by the payer. The MTN
 callback is sent only once, with no retry, and carries no secret. A query
 authenticated by the merchant is the only signal that no one else can
-produce. Nokash shows no authentication on this query in its sandbox: the site
-still calls a configured address over TLS, so the answer cannot be forged, but
-how it is authenticated in production must be known before going live
-([ADR 0003](decisions/0003-nokash-aggregator.md)).
+produce. Nokash's status call (Check Status 611) is authenticated by the
+integrator key, and its callback is signed. The signature only decides whether
+a callback may trigger a check: the key is shared by too many operations to
+prove a payment ([ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md)).
 
 *Ruled out.* Confirming a payment based on the content of a callback or a
 return URL.
 
 *Cost.* One outgoing call per trigger. Two mechanisms bound it: a minimum
 interval between two queries of the same attempt, and `rate_limit` on the
-guest endpoints.
+guest endpoints. The interval is 10 seconds, or more when the provider asks
+for more: Nokash allows one call every 30 seconds per transaction.
 
 ### D4. The fact of payment is recorded before the business effect
 
@@ -475,13 +478,13 @@ payment. The PayPal and Razorpay gateways also populate
 | `local_payments.api.start_attempt(token, msisdn, operator)` | POST   | guest,`rate_limit`       | Checks the number and the operator, if the gateway offers a choice, creates an attempt and calls initiation. Returns the same state as`get_status`. |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
+| `local_payments.api.nokash_callback?attempt=…`          | POST      | guest,`rate_limit`       | Same as the MTN callback: queues`reconcile()`, and its body is never read. |
 | `Local Payment` form: Retry authorization | button, POST | `Local Payments Manager`, System Manager | Runs the authorization of a `Paid` session again, when it is `Failed` or `Pending` for longer than 5 minutes. Answers at once if one is already running. The try counts like any other. |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
-documentation is received. A Nokash callback is planned for production, where
-Nokash sends it: as with MTN, it will only queue `reconcile()`. It does not
-exist yet, so Nokash outcomes are found by polling.
+documentation is received. Nokash sends its notification with production keys
+only, so polling alone must be able to settle a Nokash payment.
 
 ## Scheduled tasks
 
@@ -515,6 +518,9 @@ next check sends it. The authorization one fires on any error
 except a lock, deadlock, concurrent edit or read-only database, which the backoff retries alone. It is sent
 once per session; the retries and the daily "failed N times" alert still follow.
 
+`start_attempt` raises one alert itself, once the attempt is saved: a Nokash payin refused by Nokash
+(`provider_refused`), which after the local checks points at the keys or the settings.
+
 ## Security and permissions
 
 - Merchant credentials are stored in `Password` fields, encrypted with the
@@ -540,8 +546,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
   above. Errors on the guest endpoints are logged without the traceback's
   variables, which hold the number. An unexpected server error reaches the
   payer as a generic refusal.
-- The MTN callback address is built from the site's `host_name` only,
-  never from the request, so a payer cannot redirect it.
+- The address a provider calls back is built from the site's `host_name`
+  only, never from the request, so a payer cannot redirect it.
 - `provider_data` contains no secret. A token tied to an attempt is stored
   there hashed.
 - Provider access tokens are cached per settings document until their
@@ -561,6 +567,7 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - An operator the gateway does not offer is rejected before any call.
 - A currency other than XAF on a Nokash gateway, which has no currency to
   configure.
+- An amount below the `minimum_amount` of a Nokash gateway.
 - An attempt on a `Paid` or `Void` session, or through a disabled gateway,
   is rejected.
 - A new attempt is rejected as long as another one is `Initiated` or
@@ -575,8 +582,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - A Payment Request that is not submitted is never marked paid: its
   authorization fails and is retried.
 - A change to a session outside the payment flow, by anyone.
-- An enabled Production MTN gateway with callbacks on, when the site's
-  `host_name` is not an `https://` address.
+- An enabled Production MTN or Nokash gateway with callbacks on, when the
+  site's `host_name` is not an `https://` address.
 
 ## Installation and configuration
 
@@ -584,8 +591,8 @@ Steps and prerequisites are in the [README](../README.md). What the design
 depends on:
 
 - `host_name` in the site config holds the site's public `https://`
-  address. MTN calls it back, and without it no callback is sent: the
-  outcome is then found by polling only.
+  address. MTN and Nokash call it back, and without it no callback is sent:
+  the outcome is then found by polling only.
 - `developer_mode` is off. In developer mode Frappe logs refused requests
   with their variables, the payer's number among them.
 - At least one person holds `Local Payments Manager`. Saving an enabled
@@ -652,3 +659,4 @@ Nothing else varies from one site to another.
 - [`decisions/0001-native-payments-contract.md`](decisions/0001-native-payments-contract.md)
 - [`decisions/0002-payment-request-authorization-hook.md`](decisions/0002-payment-request-authorization-hook.md)
 - [`decisions/0003-nokash-aggregator.md`](decisions/0003-nokash-aggregator.md)
+- [`decisions/0004-nokash-authenticated-status-and-signed-callback.md`](decisions/0004-nokash-authenticated-status-and-signed-callback.md)

@@ -12,6 +12,7 @@ from frappe.utils import nowdate
 from local_payments import api
 from local_payments import erpnext as ep
 from local_payments import reconcile as rc
+from local_payments import user_context as uc
 from local_payments.lifecycle import ProviderResult
 from local_payments.tests.test_reconcile import (
 	FakeProvider,
@@ -58,7 +59,7 @@ class TestAsAdministrator(IntegrationTestCase):
 		frappe.set_user("Guest")
 		replaced = {name for name, value in iter(frappe.local) if before.get(name) is not value}
 		frappe.set_user("Administrator")
-		self.assertLessEqual(replaced, {*ep.USER_STATE, "cache"})
+		self.assertLessEqual(replaced, {*uc.USER_STATE, "cache"})
 
 	def test_leaves_a_fresh_cache(self):
 		frappe.local.cache["lp-probe"] = "caller"

@@ -3,16 +3,19 @@
 
 from collections.abc import Callable
 from dataclasses import asdict
+from datetime import timedelta
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint
+from frappe.utils import cint, flt
 
 from local_payments import lifecycle as lc
+from local_payments import reconcile as rc
 from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
+from local_payments.providers.msisdn import MTN, ORANGE
 from local_payments.providers.nokash import (
 	CURRENCY,
 	MSISDN_NATIONAL_LENGTH,
@@ -23,8 +26,11 @@ from local_payments.providers.nokash import (
 	NokashClient,
 	NokashConfig,
 	NokashData,
+	NokashError,
+	callback_signature_valid,
 )
 
+CALLBACK_PATH = "/api/method/local_payments.api.nokash_callback"
 OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
 OPERATOR_ICONS = {
 	MTN_MOMO: MTN_MOMO_ICON,
@@ -40,10 +46,21 @@ class NokashSettings(LocalPaymentGateway, Document):
 
 	provider_name = "Nokash"
 	initiation_name = "Payin"
+	# Nokash asks for at most one status call every 30 seconds per transaction.
+	min_check_interval = timedelta(seconds=30)
+	callback_path = CALLBACK_PATH
 	# Fixed for Cameroon, so these are not fields.
 	currency = CURRENCY
 	msisdn_prefix = MSISDN_PREFIX
 	msisdn_national_length = MSISDN_NATIONAL_LENGTH
+
+	def validate_minimum_transaction_amount(self, currency, amount):
+		if flt(amount) < cint(self.minimum_amount):
+			frappe.throw(
+				_("The minimum amount for this payment method is {0} {1}.").format(
+					self.minimum_amount, CURRENCY
+				)
+			)
 
 	def check_status(self, attempt_id: str, provider_data: dict) -> ProviderResult:
 		transaction_id = frappe.db.get_value(
@@ -54,22 +71,53 @@ class NokashSettings(LocalPaymentGateway, Document):
 		if not transaction_id:
 			# The payin's answer never arrived. Pending lets the attempt reach its deadline.
 			return ProviderResult(lc.PENDING, provider_status="No Nokash transaction id", no_reference=True)
-		return self.nokash_client().check_status(transaction_id, attempt_id)
+		try:
+			return self.nokash_client().check_status(transaction_id, attempt_id)
+		except NokashError as error:
+			if error.refused:
+				self.alert_refused(attempt_id)
+			raise
+
+	def alert_refused(self, attempt_id: str) -> None:
+		"""Tell the managers, once per attempt, that Nokash refused our key: no check can pass until it is fixed."""
+		filters = {"attempt_id": attempt_id, "parenttype": "Local Payment"}
+		row = frappe.db.get_value("Local Payment Attempt", filters, ("parent", "alerted"), as_dict=True)
+		if not row or row.alerted:
+			return
+		# Kept only if the alert goes out, as in reconcile().
+		frappe.db.set_value("Local Payment Attempt", filters, "alerted", 1, update_modified=False)
+		rc.alert_managers(row.parent, attempt_id, "provider_refused")
+
+	def verify_callback(
+		self, body: dict, header: str | None, attempt_id: str, transaction_id: str | None
+	) -> bool:
+		"""True for a notification Nokash signed with our key, about this very attempt."""
+		if not callback_signature_valid(body, header, self.get_password("i_space_key")):
+			return False
+		if body.get("orderId") != attempt_id:
+			return False
+		# An attempt that never got its id can't be compared: the signature and the order id have to do.
+		return not transaction_id or body.get("id") == transaction_id
 
 	def initiate(self, attempt_id: str, session, msisdn: str, provider_data: dict) -> Initiated:
 		exchanges = []
 		try:
 			initiation = self.nokash_client(on_exchange=exchanges.append).payin(
-				attempt_id, session.amount, msisdn, NokashData(**provider_data).operator
+				attempt_id,
+				session.amount,
+				msisdn,
+				NokashData(**provider_data).operator,
+				callback_url=self.callback_url(attempt_id) if cint(self.send_callback) else None,
 			)
 		except InvalidRequest as refused:
 			# Refused before any call, so there is nothing at Nokash to query.
 			self.log_refusal(attempt_id, session.name, str(refused))
 			return Initiated(lc.ERROR)
 
-		status = lc.INITIATED
+		status, alert = lc.INITIATED, None
 		if initiation.outcome == InitiationOutcome.REJECTED:
-			status = lc.ERROR
+			# The number, amount and operator passed our checks, so this points at the keys or the settings.
+			status, alert = lc.ERROR, "provider_refused"
 			self.log_refusal(
 				attempt_id,
 				session.name,
@@ -81,6 +129,7 @@ class NokashSettings(LocalPaymentGateway, Document):
 				attempt_id, session.name, exchanges, initiation.outcome == InitiationOutcome.ACCEPTED
 			),
 			initiation.transaction_id,
+			alert,
 		)
 
 	def payer_operators(self) -> list[dict]:
@@ -103,6 +152,9 @@ class NokashSettings(LocalPaymentGateway, Document):
 			frappe.throw(_("Choose your mobile money operator."))
 		return asdict(NokashData(operator))
 
+	def payer_network(self, provider_data: dict) -> str | None:
+		return {MTN_MOMO: MTN, ORANGE_MONEY: ORANGE}.get(NokashData(**provider_data).operator)
+
 	def offered_operators(self) -> list[str]:
 		return [operator for operator, field in OPERATOR_FIELDS.items() if cint(self.get(field))]
 
@@ -111,6 +163,7 @@ class NokashSettings(LocalPaymentGateway, Document):
 			api_base_url=self.api_base_url,
 			i_space_key=self.get_password("i_space_key"),
 			app_space_key=self.get_password("app_space_key"),
+			integration_key=self.get_password("integration_key", raise_exception=False),
 		)
 		return NokashClient(config, on_exchange=on_exchange)
 
@@ -119,8 +172,19 @@ class NokashSettings(LocalPaymentGateway, Document):
 		self.validate_api_base_url()
 		self.validate_operators()
 		self.set_pending_timeout()
-		self.warn_if_no_alert_manager()
+		self.set_minimum_amount()
+		self.validate_callback_host()
+		if self.environment == "Production":
+			self.warn_if_no_alert_manager()
 
 	def validate_operators(self):
 		if not self.offered_operators():
 			frappe.throw(_("Accept at least one operator."))
+
+	def set_minimum_amount(self):
+		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.
+		minimum = cint(self.minimum_amount)
+		if minimum < 0:
+			frappe.throw(_("Minimum Amount cannot be negative."))
+		if minimum == 0:
+			self.minimum_amount = cint(self.meta.get_field("minimum_amount").default)

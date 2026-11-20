@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import frappe
 from frappe.tests import IntegrationTestCase
+from frappe.utils import get_url
 
 SETTINGS = "Local Payments Test Settings"
 GATEWAY = "Local Payments Test-lp-test"
@@ -76,6 +77,29 @@ class TestLocalPaymentGateway(IntegrationTestCase):
 		self.assertEqual(frappe.parse_json(session.request_data).order_id, "ORD-1")
 		self.assertFalse(session.attempts)
 
+	def test_the_checkout_link_never_carries_the_development_port(self):
+		# What a dev bench behind a public tunnel looks like: Frappe would append :8001 to the host.
+		dev = {"developer_mode": 1, "webserver_port": 8001}
+		cases = {
+			"https host_name, no port": ("https://shop.example.com", "https://shop.example.com"),
+			"a port the site really has": ("https://shop.example.com:8443", "https://shop.example.com:8443"),
+			"no scheme": ("shop.example.com", "http://shop.example.com"),
+			"credentials and a path are dropped": (
+				"https://u:p@shop.example.com/app",
+				"https://shop.example.com",
+			),
+		}
+		for case, (host_name, base) in cases.items():
+			with self.subTest(case), patch.dict(frappe.conf, {**dev, "host_name": host_name}):
+				url = self.settings.get_payment_url(**REQUEST)
+				self.assertTrue(url.startswith(f"{base}/local_payment_checkout?token="), url)
+
+		# Without host_name, Frappe's own address is kept: the request's host.
+		with patch.dict(frappe.conf, {**dev, "host_name": None, "hostname": None}):
+			self.assertTrue(
+				self.settings.get_payment_url(**REQUEST).startswith(get_url("/local_payment_checkout"))
+			)
+
 	def test_open_session_is_reused_only_for_the_same_request(self):
 		url = self.settings.get_payment_url(**REQUEST)
 		self.assertEqual(self.settings.get_payment_url(**REQUEST), url)
@@ -84,6 +108,21 @@ class TestLocalPaymentGateway(IntegrationTestCase):
 		self.settings.get_payment_url(**{**REQUEST, "amount": 6000})
 		self.settings.get_payment_url(**{**REQUEST, "reference_docname": "Guest"})
 		self.assertEqual(len(sessions()), 3)
+
+	def test_a_session_is_never_reused_for_another_payer_or_another_request(self):
+		"""LMS, for one, learns who paid from the request the session kept, not from who opened the link."""
+		first = {**REQUEST, "payer_email": "a@example.com", "payment": "LMS-PAY-1"}
+		url = self.settings.get_payment_url(**first)
+		self.assertEqual(self.settings.get_payment_url(**first), url)
+
+		for case, changes in {
+			"another payer": {"payer_email": "b@example.com", "payment": "LMS-PAY-1"},
+			"another request of the same payer": {"payment": "LMS-PAY-2"},
+			"a payer who gives no address": {"payer_email": None},
+		}.items():
+			with self.subTest(case):
+				self.assertNotEqual(self.settings.get_payment_url(**{**first, **changes}), url)
+		self.assertEqual(len(sessions()), 4)
 
 	def test_paid_or_void_session_is_not_reused(self):
 		url = self.settings.get_payment_url(**REQUEST)

@@ -30,7 +30,15 @@ from local_payments.providers.common import (
 from local_payments.providers.msisdn import normalize_msisdn
 
 PAYIN_PATH = "/lapas-on-trans/trans/api-payin-request/407"
-STATUS_PATH = "/lapas-on-trans/trans/310/status-request"
+STATUS_PATH = "/lapas-on-trans/trans/611/status-request"
+
+# Nokash answers 403 Unauthorized, body "Unauthorized", to an authenticated call that does not carry
+# this header. It is meant for the integration phase, with the production keys: any IP address is accepted
+# and each transaction is capped at 1,000 XAF. Once Nokash has the site's addresses, calls go without it.
+INTEGRATION_HEADER = "X-NK-Integration"
+
+# A callback only ever carries a final status. Anything else is ignored.
+CALLBACK_FINAL_STATUSES = frozenset({"SUCCESS", "FAILED", "CANCELED", "TIMEOUT"})
 
 # The offer covers Cameroon only, and the status answer names no currency.
 CURRENCY = "XAF"
@@ -63,6 +71,11 @@ class NokashError(Exception):
 		detail = ", ".join(str(part) for part in (http_status, code) if part)
 		super().__init__("Nokash status query failed" + (f" ({detail})" if detail else ""))
 
+	@property
+	def refused(self) -> bool:
+		"""True for a 403: the key was not accepted, or the transaction is not in its space. Not an outage."""
+		return self.http_status == 403
+
 
 class InitiationOutcome(StrEnum):
 	ACCEPTED = "accepted"  # REQUEST_OK with a transaction id
@@ -83,6 +96,8 @@ class NokashConfig:
 	api_base_url: str
 	i_space_key: str = field(repr=False)
 	app_space_key: str = field(repr=False)
+	# Empty once Nokash recognises the caller by its address instead.
+	integration_key: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -117,7 +132,7 @@ class NokashClient:
 		the outcome. Raises InvalidRequest, before any call, for a bad number or amount.
 		"""
 		# The signature and the body use these same values.
-		amount, phone = whole_amount(amount), national_number(msisdn)
+		amount, phone = whole_amount(amount), payer_number(msisdn)
 
 		# Everything sent except the keys, which is what may be logged.
 		loggable = {
@@ -138,7 +153,7 @@ class NokashClient:
 			response = self.http.request(
 				"POST",
 				url,
-				headers={"hmac-signature": signature_secret},
+				headers=self._headers({"hmac-signature": signature_secret}),
 				json={
 					"i_space_key": self.config.i_space_key,
 					"app_space_key": self.config.app_space_key,
@@ -165,18 +180,26 @@ class NokashClient:
 		return read_payin(response)
 
 	def check_status(self, transaction_id: str, attempt_id: str) -> ProviderResult:
-		"""Ask Nokash where a transaction stands. Raises NokashError when it gives no usable answer."""
+		"""Ask Nokash where a transaction stands. Raises NokashError when it gives no usable answer.
+
+		Check Status 611 is authenticated by the integrator key, and answers 403 for a key it does not know
+		and for a transaction outside the key's space alike.
+		"""
+		# In the body, not the query string: a failed call's error message holds the URL it went to.
+		# Frappe masks traceback variables whose name contains "secret", so this one never reaches a log.
+		form_secret = {"i_space_key": self.config.i_space_key, "transaction_id": transaction_id}
 		try:
 			response = self.http.request(
 				"POST",
 				self._url(STATUS_PATH),
-				headers={"Content-Type": "application/json"},
-				params={"transaction_id": transaction_id},
+				headers=self._headers({}),
+				data=form_secret,
 				timeout=DEFAULT_TIMEOUT,
 				allow_redirects=False,
 			)
 		except requests.RequestException:
-			raise NokashError()
+			# `from None`: the transport error carries the request's URL.
+			raise NokashError() from None
 
 		try:
 			return read_status(response, transaction_id, attempt_id)
@@ -184,10 +207,23 @@ class NokashClient:
 			# Raised here, not in read_status, so the logged traceback leaves out the payer's data.
 			raise NokashError(response.status_code, str(unreadable) or None) from None
 
+	def _headers(self, headers: dict) -> dict:
+		"""The call's own headers, plus the integration one while the contract needs it."""
+		if self.config.integration_key:
+			return {**headers, INTEGRATION_HEADER: self.config.integration_key}
+		return headers
+
 	def _without_secrets(self, text: str, signature_secret: str) -> str:
 		"""Nokash's answer, with anything it repeated from the request masked."""
-		for secret in (self.config.i_space_key, self.config.app_space_key, signature_secret):
-			text = text.replace(secret, "***")
+		secrets = (
+			self.config.i_space_key,
+			self.config.app_space_key,
+			self.config.integration_key,
+			signature_secret,
+		)
+		for secret in secrets:
+			if secret:
+				text = text.replace(secret, "***")
 		return text
 
 	def _report(self, exchange: Exchange) -> None:
@@ -204,13 +240,13 @@ def sign(order_id: str, amount: int, user_phone: str, app_space_key: str, i_spac
 	return hmac.new(i_space_key.encode(), signed.encode(), hashlib.sha256).hexdigest()
 
 
-def national_number(msisdn: str) -> str:
-	"""The number as Nokash expects it, without the country code."""
+def payer_number(msisdn: str) -> str:
+	"""The number as Nokash expects it: 237 then the 9-digit national number."""
 	normalized = normalize_msisdn(msisdn, MSISDN_PREFIX, MSISDN_NATIONAL_LENGTH)
 	if not normalized:
 		# The number itself stays out of the message: it is personal data.
 		raise InvalidRequest(f"The phone number must have {MSISDN_NATIONAL_LENGTH} digits.")
-	return normalized[len(MSISDN_PREFIX) :]
+	return normalized
 
 
 def envelope(response) -> tuple[str | None, dict]:
@@ -240,9 +276,9 @@ def read_status(response, transaction_id: str, attempt_id: str) -> ProviderResul
 	if response.status_code != 200 or answer != REQUEST_OK:
 		raise _Unreadable((answer or "")[:40])
 
-	# Only compared when present: the contract comes from a simulated API.
+	# Both are in the answer, so both must match: an answer that names no transaction proves nothing about ours.
 	for name, expected in (("id", transaction_id), ("orderId", attempt_id)):
-		if data.get(name) not in (None, expected):
+		if data.get(name) != expected:
 			raise _Unreadable(f"{name} mismatch")
 
 	raw_status = data.get("status")
@@ -257,3 +293,33 @@ def read_status(response, transaction_id: str, attempt_id: str) -> ProviderResul
 		transaction_id=transaction_id,
 		provider_status=describe(raw_status, as_text(data.get("statusReason"))),
 	)
+
+
+def callback_signature_valid(body, header, i_space_key: str) -> bool:
+	"""True when `header` is Nokash's signature of this mobile money notification.
+
+	`hmac-signature: t=<seconds>,s=<hex>`. `s` is HMAC-SHA256, keyed by the integrator key, of the body's
+	id, amount, orderId, status and phone joined with ":", as received, `null` for a missing value. `t` is
+	not signed, so it proves nothing and is ignored. Never raises: anything unexpected is simply not valid.
+	"""
+	if not (isinstance(body, dict) and isinstance(header, str) and i_space_key):
+		return False
+
+	received = None
+	for part in header.split(","):
+		name, separator, value = part.strip().partition("=")
+		if separator and name == "s":
+			received = value
+	# Only mobile money is offered, so a body with no phone is not one of ours.
+	if not received or "phone" not in body:
+		return False
+
+	values = (body.get("id"), body.get("amount"), body.get("orderId"), body.get("status"), body["phone"])
+	# A number is read as its digits, a string as it is. A float, a bool or an object can't be signed the same way.
+	if not all(v is None or (isinstance(v, (str, int)) and not isinstance(v, bool)) for v in values):
+		return False
+	signed = ":".join("null" if v is None else str(v) for v in values)
+
+	expected = hmac.new(i_space_key.encode(), signed.encode(), hashlib.sha256).hexdigest()
+	# Bytes, so a non-ASCII `s` is a mismatch and not a TypeError.
+	return hmac.compare_digest(expected.encode(), received.encode())

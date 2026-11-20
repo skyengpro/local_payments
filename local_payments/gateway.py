@@ -5,7 +5,8 @@
 
 A Settings doctype inherits `LocalPaymentGateway`, sets `provider_name` and `initiation_name`, implements
 `check_status` and `initiate`, and has the attributes `gateway_name`, `enabled`, `currency`, `msisdn_prefix`,
-`msisdn_national_length` and `pending_timeout_minutes`. Nothing provider-specific belongs in this file.
+`msisdn_national_length` and `pending_timeout_minutes`. One the provider can call back also sets `callback_path`
+and has `environment` and `send_callback`. Nothing provider-specific belongs in this file.
 """
 
 from dataclasses import dataclass
@@ -21,7 +22,13 @@ from payments.utils import create_payment_gateway
 from local_payments import reconcile as rc
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange
-from local_payments.providers.msisdn import normalize_msisdn
+from local_payments.providers.msisdn import (
+	CAMEROON_PREFIX,
+	MTN,
+	ORANGE,
+	is_on_network,
+	normalize_msisdn,
+)
 
 CHECKOUT_PAGE = "local_payment_checkout"
 MTN_MOMO_ICON = "/assets/local_payments/images/operators/mtn_momo.png"
@@ -44,11 +51,15 @@ NETWORK_LOG_SAVEPOINT = "lp_network_log"
 
 @dataclass(frozen=True)
 class Initiated:
-	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id."""
+	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id.
+
+	`alert` is the `alert_managers` reason to send once the attempt is saved, if any.
+	"""
 
 	status: str
 	integration_request: str | None = None
 	transaction_id: str | None = None
+	alert: str | None = None
 
 
 def log_error(title: str, session_name: str | None = None, detail: str | None = None) -> None:
@@ -64,6 +75,38 @@ def log_error(title: str, session_name: str | None = None, detail: str | None = 
 		reference_name=session_name,
 		defer_insert=True,
 	)
+
+
+def callback_base(host_name: str | None, production: bool) -> str | None:
+	"""The address a provider can call back, from the site's host_name. None if there is none it can use.
+
+	Production needs an https:// address. get_url() is not used: without host_name it falls back to the
+	site name over http, and it adds the dev server's port.
+	"""
+	host_name = (host_name or "").strip()
+	# No scheme means http, as in Frappe.
+	url = urlsplit(host_name if "://" in host_name else f"http://{host_name}")
+	try:
+		port = url.port
+	except ValueError:
+		return None
+	if url.scheme not in ("https", "http") or not url.hostname:
+		return None
+	if production and url.scheme != "https":
+		return None
+	# Host and port only: credentials in host_name would reach the provider and the Integration Request.
+	return f"{url.scheme}://{url.hostname}" + (f":{port}" if port else "")
+
+
+def site_url(path: str) -> str:
+	"""An address on this site, built from host_name when it is set, else as Frappe's `get_url()` does.
+
+	`get_url()` adds the development server's port to a host_name that has none, so a payer sent to
+	`https://<public name>:8001/...` never arrives. The port is added only outside production mode, which is
+	why the same site works once deployed.
+	"""
+	base = callback_base(frappe.conf.host_name or frappe.conf.hostname, production=False)
+	return f"{base}{path}" if base else get_url(path)
 
 
 def validate_amount_for_currency(amount, currency: str) -> None:
@@ -84,6 +127,8 @@ class LocalPaymentGateway:
 	provider_name: str
 	# How the network log names the initiation call.
 	initiation_name: str
+	# Where the provider calls back, for a gateway that can be called back.
+	callback_path: str
 
 	@property
 	def payment_gateway_name(self) -> str:
@@ -106,6 +151,9 @@ class LocalPaymentGateway:
 		"""
 		raise NotImplementedError
 
+	def validate_minimum_transaction_amount(self, currency, amount):
+		"""Raises for an amount below the gateway's minimum. ERPNext calls this one too."""
+
 	def payer_operators(self) -> list[dict]:
 		"""The operators the payer picks from on the page, as {value, label, icon}. Empty when there is no choice."""
 		return []
@@ -127,6 +175,54 @@ class LocalPaymentGateway:
 				_("Enter your mobile money number: {0} digits, with or without +{1}.").format(length, prefix)
 			)
 		return msisdn
+
+	def payer_network(self, provider_data: dict) -> str | None:
+		"""The mobile network (`MTN` or `ORANGE`) this attempt's number has to belong to, if the gateway knows it.
+
+		A gateway that sends the payment request to one operator says which, so a number of another network
+		is refused with a clear message instead of failing at the provider.
+		"""
+		return None
+
+	def validate_payer_network(self, msisdn: str, provider_data: dict) -> None:
+		"""Raises a ValidationError, shown under the field, when the number is not on the operator's network.
+
+		Only Cameroon numbers have prefixes to check: another country code, as in MTN's sandbox, is left alone.
+		"""
+		network = self.payer_network(provider_data)
+		if not network or self.msisdn_prefix != CAMEROON_PREFIX:
+			return
+		if is_on_network(msisdn, CAMEROON_PREFIX, network):
+			return
+		if network == MTN:
+			frappe.throw(_("This is not an MTN number. Enter an MTN Mobile Money number."))
+		if network == ORANGE:
+			frappe.throw(_("This is not an Orange number. Enter an Orange Money number."))
+
+	def callback_url(self, attempt_id: str) -> str | None:
+		"""None when the site has no address the provider can call. Status checks then find the outcome on their own."""
+		# Never from the request's Host header, which the payer chooses.
+		base = self.site_callback_base()
+		if not base:
+			return None
+		# The attempt_id, never the session token: this URL is public and the token opens the checkout page.
+		return f"{base}{self.callback_path}?{urlencode({'attempt': attempt_id})}"
+
+	def site_callback_base(self) -> str | None:
+		return callback_base(frappe.conf.host_name or frappe.conf.hostname, self.environment == "Production")
+
+	def validate_callback_host(self):
+		if (
+			cint(self.enabled)
+			and cint(self.send_callback)
+			and self.environment == "Production"
+			and not self.site_callback_base()
+		):
+			frappe.throw(
+				_(
+					"{0} callbacks need an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
+				).format(self.provider_name)
+			)
 
 	def validate_gateway_name_unchanged(self):
 		# Without this, Frappe would silently put the document name back into gateway_name.
@@ -232,16 +328,24 @@ class LocalPaymentGateway:
 		amount, currency = flt(kwargs.get("amount")), kwargs.get("currency")
 		self.validate_transaction_currency(currency)
 		validate_amount_for_currency(amount, currency)
+		self.validate_minimum_transaction_amount(currency, amount)
 
 		token = self._find_open_session(kwargs, amount, currency) or self._create_session(
 			kwargs, amount, currency
 		)
-		return get_url(f"/{CHECKOUT_PAGE}?{urlencode({'token': token})}")
+		return site_url(f"/{CHECKOUT_PAGE}?{urlencode({'token': token})}")
 
 	def _find_open_session(self, kwargs, amount, currency) -> str | None:
-		return frappe.db.get_value(
+		"""The token of an Open session made for this very request, or None.
+
+		Same reference, amount and currency is not enough: the session keeps the consumer's request, and
+		`reconcile()` hands it back to the consumer once paid. Another payer, or another request of the same
+		payer, must never inherit it: the money would be credited to whoever made the first one. So the whole
+		request has to be the same.
+		"""
+		candidates = frappe.get_all(
 			"Local Payment",
-			{
+			filters={
 				"status": "Open",
 				"reference_doctype": kwargs.get("reference_doctype"),
 				"reference_docname": kwargs.get("reference_docname"),
@@ -249,7 +353,13 @@ class LocalPaymentGateway:
 				"amount": amount,
 				"currency": currency,
 			},
-			"token",
+			fields=["token", "request_data"],
+			order_by="creation desc",
+		)
+		# Through JSON, as it was stored.
+		asked = frappe.parse_json(frappe.as_json(kwargs))
+		return next(
+			(row.token for row in candidates if frappe.parse_json(row.request_data or "{}") == asked), None
 		)
 
 	def _create_session(self, kwargs, amount, currency) -> str:

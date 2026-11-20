@@ -1,7 +1,7 @@
 # Copyright (c) 2026, SkyEngPro and contributors
 # For license information, please see license.txt
 
-"""Guest endpoints: the payer's browser (`start_attempt`, `get_status`) and MTN's callback.
+"""Guest endpoints: the payer's browser (`start_attempt`, `get_status`) and the providers' callbacks.
 
 A payer holds a token and nothing else: every lookup starts from it, and the session's sequential
 name never leaves this module. `Local Payment` is readable by managers only, so these reads go
@@ -17,12 +17,13 @@ import frappe
 from frappe import _
 from frappe.model.base_document import get_controller
 from frappe.rate_limiter import rate_limit
-from frappe.utils import cint, get_url, now_datetime
+from frappe.utils import cint, now_datetime
 from payments.utils import get_payment_gateway_controller
 
 from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
-from local_payments.gateway import Initiated, log_error
+from local_payments.gateway import Initiated, log_error, site_url
+from local_payments.providers.nokash import CALLBACK_FINAL_STATUSES
 
 # The session's `before_insert` fills the token with frappe.generate_hash(length=32), which is hex.
 TOKEN_PATTERN = re.compile(r"\A[0-9a-f]{32}\Z")
@@ -61,11 +62,11 @@ STARTS_WINDOW = 600
 STARTS_PER_TOKEN = 10
 STARTS_PER_ADDRESS = 30
 
-# MTN sends one callback per attempt, from a few addresses for every attempt of the site, so the
-# per-address budget is wide.
+# A provider sends about one callback per attempt, from a few addresses for every attempt of the site, so
+# the per-address budget is wide.
 CALLBACKS_PER_ADDRESS = 600
 
-# attempt_id is a UUID v4, sent to MTN as X-Reference-Id.
+# attempt_id is a UUID v4, sent to MTN as X-Reference-Id and to Nokash as order_id.
 ATTEMPT_ID_PATTERN = re.compile(r"\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z")
 
 
@@ -115,7 +116,7 @@ def exit_url(session) -> str:
 		if asked and SAFE_URL.match(asked.strip()):
 			return asked.strip()
 	query = urlencode({"doctype": session.reference_doctype, "docname": session.reference_docname})
-	return get_url(f"{DEFAULT_SUCCESS_PAGE}?{query}")
+	return site_url(f"{DEFAULT_SUCCESS_PAGE}?{query}")
 
 
 def payer_status(session, attempt) -> dict:
@@ -158,6 +159,8 @@ def _start(token: str, msisdn: str, operator: str | None) -> dict:
 		frappe.throw(_("This payment method is not available at the moment."))
 	msisdn = gateway.payer_msisdn(msisdn)
 	provider_data = gateway.attempt_data(operator)
+	# Before anything is written or sent: a number of another network would only fail at the provider.
+	gateway.validate_payer_network(msisdn, provider_data)
 
 	attempt_id = _open_attempt(session.name, msisdn, cint(gateway.pending_timeout_minutes), provider_data)
 	try:
@@ -172,6 +175,8 @@ def _start(token: str, msisdn: str, operator: str | None) -> dict:
 		_record_start(session.name, attempt_id, started)
 		# The provider's id may be the only way to check this attempt, so it is saved before anything can fail.
 		frappe.db.commit()  # nosemgrep: frappe-manual-commit -- provider id on record before anything else
+		if started.alert:
+			rc.alert_managers(session.name, attempt_id, started.alert)
 	except Exception:
 		# The attempt is on record and may be on the phone already. The log keeps the id support will need.
 		frappe.db.rollback()
@@ -256,7 +261,7 @@ def get_status(token: str) -> dict:
 	session = _session_or_404(token)
 	attempt = current_attempt(session.name)
 
-	if _worth_checking(attempt):
+	if _worth_checking(attempt, session.payment_gateway):
 		_check_with_provider(attempt.attempt_id, session.name)
 		# The check commits, so read both rows again.
 		session = _session_or_404(token)
@@ -271,6 +276,51 @@ def get_status(token: str) -> dict:
 @rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
 def mtn_momo_callback() -> None:
 	"""Queue a status check for a known attempt still in play. Every other call gets the same empty answer."""
+	_queue_status_check()
+
+
+# Nokash signs its notifications with the integrator key. The signature only filters who may trigger a check:
+# the body is never read for the outcome (D3), and the call only queues reconcile().
+@frappe.whitelist(allow_guest=True, methods=["POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
+def nokash_callback() -> None:
+	"""Queue a status check for a known attempt, when Nokash signed the notification.
+
+	401 for anything that can't be verified, an unknown attempt included, so the answer tells a caller nothing.
+	A signed notification with a status that isn't final, or about a settled attempt, is answered and ignored.
+	"""
+	attempt = frappe.request.args.get("attempt")
+	body = frappe.request.get_json(silent=True)
+	if not _nokash_signed(attempt, body):
+		frappe.local.response["http_status_code"] = 401
+		return
+	if body.get("status") in CALLBACK_FINAL_STATUSES:
+		_queue_status_check()
+
+
+def _nokash_signed(attempt, body) -> bool:
+	"""True when Nokash's signature covers this notification, and it is about this attempt."""
+	if not isinstance(attempt, str) or not ATTEMPT_ID_PATTERN.match(attempt) or not isinstance(body, dict):
+		return False
+	row = frappe.db.get_value(
+		"Local Payment Attempt",
+		{"attempt_id": attempt, "parenttype": "Local Payment"},
+		("parent", "provider_transaction_id"),
+		as_dict=True,
+	)
+	if not row:
+		return False
+	gateway = get_payment_gateway_controller(
+		frappe.db.get_value("Local Payment", row.parent, "payment_gateway")
+	)
+	verify = getattr(gateway, "verify_callback", None)
+	return bool(
+		verify
+		and verify(body, frappe.get_request_header("hmac-signature"), attempt, row.provider_transaction_id)
+	)
+
+
+def _queue_status_check() -> None:
 	# Frappe builds form_dict from the JSON body alone when there is one, so read the query string.
 	attempt = frappe.request.args.get("attempt")
 	if not attempt or not ATTEMPT_ID_PATTERN.match(attempt):
@@ -309,10 +359,10 @@ def _session_or_404(token) -> frappe._dict:
 	return session
 
 
-def _worth_checking(attempt) -> bool:
+def _worth_checking(attempt, gateway: str) -> bool:
 	return bool(
 		attempt
 		and attempt.status in rc.CHECKABLE_STATES
-		and rc.check_interval_elapsed(attempt.last_checked_on)
+		and rc.check_interval_elapsed(attempt.last_checked_on, interval=rc.min_check_interval(gateway))
 		and not rc.before_first_check(attempt.check_count, attempt.next_check_on)
 	)

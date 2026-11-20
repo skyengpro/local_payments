@@ -291,12 +291,15 @@ class TestStartAttempt(CheckoutTestCase):
 
 
 class TestMtnMomoCallback(CheckoutTestCase):
+	endpoint = "mtn_momo_callback"
+	http_method = "PUT"
+
 	def callback(self, attempt, body=None):
-		# As MTN sends it: the attempt in the query string, a JSON body Frappe turns into form_dict.
+		# As the provider sends it: the attempt in the query string, a JSON body Frappe turns into form_dict.
 		query = f"attempt={attempt}" if attempt is not None else ""
 		set_request(
-			method="PUT",
-			path="/api/method/local_payments.api.mtn_momo_callback",
+			method=self.http_method,
+			path=f"/api/method/local_payments.api.{self.endpoint}",
 			query_string=query,
 			data=json.dumps(body or {}),
 			content_type="application/json",
@@ -309,7 +312,7 @@ class TestMtnMomoCallback(CheckoutTestCase):
 			patch.object(rc, "reconcile") as reconcile,
 			patch.object(rc, "_provider_for", return_value=provider),
 		):
-			answer = api.mtn_momo_callback()
+			answer = getattr(api, self.endpoint)()
 		# Never inside the request: reconcile() commits and asks the provider.
 		reconcile.assert_not_called()
 		self.assertEqual(provider.calls, [])
@@ -338,3 +341,133 @@ class TestMtnMomoCallback(CheckoutTestCase):
 				answer, enqueue = self.callback(attempt)
 				self.assertIsNone(answer)
 				enqueue.assert_not_called()
+
+
+class FakeSigningGateway:
+	"""Stands in for the Nokash Settings document: the signature check itself is tested with the real one."""
+
+	def __init__(self, genuine=True):
+		self.genuine = genuine
+		self.calls = []
+
+	def verify_callback(self, body, header, attempt_id, transaction_id):
+		self.calls.append((body, header, attempt_id, transaction_id))
+		return self.genuine
+
+
+class TestNokashCallback(CheckoutTestCase):
+	"""Nokash signs its notifications: a call that can't be verified is refused, and nothing is queued."""
+
+	def callback(self, attempt, body=None, gateway=None, header="t=1,s=abc"):
+		query = f"attempt={attempt}" if attempt is not None else ""
+		set_request(
+			method="POST",
+			path="/api/method/local_payments.api.nokash_callback",
+			query_string=query,
+			data=json.dumps(body) if body is not None else "",
+			content_type="application/json",
+			headers={"hmac-signature": header} if header is not None else {},
+		)
+		frappe.local.request_ip = "127.0.0.1"
+		frappe.local.response = frappe._dict()
+		gateway = gateway or FakeSigningGateway()
+		with (
+			patch.object(frappe, "enqueue") as enqueue,
+			patch.object(rc, "reconcile") as reconcile,
+			patch.object(api, "get_payment_gateway_controller", return_value=gateway),
+		):
+			answer = api.nokash_callback()
+		# Never inside the request: reconcile() commits and asks the provider.
+		reconcile.assert_not_called()
+		self.assertIsNone(answer)
+		return frappe.local.response.get("http_status_code"), enqueue
+
+	def test_a_signed_notification_of_a_running_attempt_queues_one_reconcile(self):
+		for status in (lc.INITIATED, lc.PENDING, lc.UNRESOLVED):
+			with self.subTest(status=status):
+				attempt_id = str(uuid.uuid4())
+				make_session(
+					{"attempt_id": attempt_id, "status": status, "provider_transaction_id": "nk_tx_1"}
+				)
+				gateway = FakeSigningGateway()
+				body = {"id": "nk_tx_1", "orderId": attempt_id, "status": "SUCCESS"}
+
+				refused, enqueue = self.callback(attempt_id, body, gateway)
+
+				self.assertIsNone(refused)
+				enqueue.assert_called_once_with(
+					"local_payments.reconcile.reconcile",
+					attempt_id=attempt_id,
+					job_id=f"local_payments:reconcile:{attempt_id}",
+					deduplicate=True,
+				)
+				# The check gets what the call carried, and the id the attempt holds.
+				self.assertEqual(gateway.calls, [(body, "t=1,s=abc", attempt_id, "nk_tx_1")])
+
+	def test_a_notification_that_cannot_be_verified_is_refused_and_queues_nothing(self):
+		attempt_id = str(uuid.uuid4())
+		make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		body = {"id": "x", "orderId": attempt_id, "status": "SUCCESS"}
+
+		refused, enqueue = self.callback(attempt_id, body, FakeSigningGateway(genuine=False))
+
+		self.assertEqual(refused, 401)
+		enqueue.assert_not_called()
+
+	def test_a_gateway_that_signs_nothing_cannot_vouch_for_a_notification(self):
+		attempt_id = str(uuid.uuid4())
+		make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		refused, enqueue = self.callback(attempt_id, {"status": "SUCCESS"}, gateway=object())
+		self.assertEqual(refused, 401)
+		enqueue.assert_not_called()
+
+	def test_an_unknown_or_malformed_attempt_gets_the_same_refusal_without_asking_the_gateway(self):
+		settled = str(uuid.uuid4())
+		make_session({"attempt_id": settled, "status": lc.SUCCEEDED})
+		for attempt in (str(uuid.uuid4()), None, "", "not-an-attempt", UNKNOWN_TOKEN):
+			with self.subTest(attempt=attempt):
+				gateway = FakeSigningGateway()
+				refused, enqueue = self.callback(attempt, {"status": "SUCCESS", "orderId": attempt}, gateway)
+				self.assertEqual(refused, 401)
+				enqueue.assert_not_called()
+				self.assertEqual(gateway.calls, [])
+
+	def test_a_body_that_is_not_a_json_object_is_refused(self):
+		attempt_id = str(uuid.uuid4())
+		make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		for body in (None, [], ["SUCCESS"], "SUCCESS", 1):
+			with self.subTest(body=body):
+				gateway = FakeSigningGateway()
+				refused, enqueue = self.callback(attempt_id, body, gateway)
+				self.assertEqual(refused, 401)
+				enqueue.assert_not_called()
+				self.assertEqual(gateway.calls, [])
+
+	def test_a_signed_notification_that_changes_nothing_is_answered_and_ignored(self):
+		settled, running = str(uuid.uuid4()), str(uuid.uuid4())
+		make_session({"attempt_id": settled, "status": lc.SUCCEEDED})
+		make_session({"attempt_id": running, "status": lc.PENDING})
+		cases = {
+			"settled attempt": (settled, "SUCCESS"),
+			"status that is not final": (running, "PENDING"),
+			"status Nokash does not name": (running, "REVERSED"),
+			"no status": (running, None),
+		}
+		for case, (attempt_id, status) in cases.items():
+			with self.subTest(case):
+				refused, enqueue = self.callback(attempt_id, {"orderId": attempt_id, "status": status})
+				self.assertIsNone(refused)
+				enqueue.assert_not_called()
+
+	def test_what_the_body_says_never_decides_the_payment(self):
+		attempt_id = str(uuid.uuid4())
+		session = make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		claims = {"id": "nk_tx_forged", "status": "SUCCESS", "amount": "5000", "orderId": attempt_id}
+
+		refused, enqueue = self.callback(attempt_id, claims)
+
+		self.assertIsNone(refused)
+		enqueue.assert_called_once()
+		self.assertEqual(frappe.db.get_value("Local Payment", session.name, "status"), "Open")
+		row = attempts(session)[0]
+		self.assertEqual((row.status, row.provider_transaction_id), (lc.PENDING, None))
