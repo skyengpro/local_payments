@@ -15,13 +15,7 @@ concurrency:
 jobs:
   tests:
     runs-on: ubuntu-latest
-    name: Server (Frappe version-16${{ matrix.erpnext && ', ERPNext' || '' }})
-
-    # Without ERPNext: the app must install and behave the same. With it: Payment Requests get settled.
-    strategy:
-      fail-fast: false
-      matrix:
-        erpnext: [false, true]
+    name: Server (Frappe version-16, ERPNext)
 
     services:
       redis-cache:
@@ -44,24 +38,20 @@ jobs:
       - name: Clone
         uses: actions/checkout@v7
 
-      - name: Setup Python
-        uses: actions/setup-python@v7
+      # uv installs Python 3.14 itself and caches its downloads (replaces setup-python and the pip cache).
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.4.0
         with:
           python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: '**/pyproject.toml'
 
+      # bench runs `yarn install` for frappe and erpnext, so Node stays. No check-latest:
+      # it forces a download instead of using the version preinstalled on the runner.
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          check-latest: true
-
-      - name: Cache pip
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py', '**/setup.cfg') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
 
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
@@ -78,15 +68,17 @@ jobs:
       - name: Install MariaDB client
         run: |
           sudo apt update
-          sudo apt-get install -y mariadb-client
+          sudo apt-get install -y --no-install-recommends mariadb-client
 
       - name: Init bench
         run: |
-          pip install frappe-bench
+          uv tool install frappe-bench
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           bench init \
             --skip-redis-config-generation \
             --skip-assets \
-            --python "$(which python)" \
+            --python "$(uv python find 3.14)" \
             --frappe-branch version-16 \
             ~/frappe-bench
 
@@ -101,9 +93,8 @@ jobs:
           # get-app clones shallow, so the pin is gone from the clone once version-16 moves on.
           git -C apps/payments fetch --depth 1 https://github.com/frappe/payments cca07d9f9392e2ea0e521c5975151db9e4b6c321
           git -C apps/payments checkout cca07d9f9392e2ea0e521c5975151db9e4b6c321
-          if [ "${{ matrix.erpnext }}" = "true" ]; then
-            bench get-app erpnext --branch version-16
-          fi
+          # ERPNext is installed: Payment Requests get settled against it.
+          bench get-app erpnext --branch version-16
           bench get-app local_payments "$GITHUB_WORKSPACE"
           bench setup requirements --dev
 
@@ -112,9 +103,7 @@ jobs:
         run: |
           bench new-site --db-root-password root --admin-password admin test_site
           bench --site test_site install-app payments
-          if [ "${{ matrix.erpnext }}" = "true" ]; then
-            bench --site test_site install-app erpnext
-          fi
+          bench --site test_site install-app erpnext
           bench --site test_site install-app local_payments
           bench build --app local_payments
         env:

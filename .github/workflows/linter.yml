@@ -22,11 +22,18 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # gitleaks needs history, not just the merge commit
-      - uses: actions/setup-python@v7
+      - uses: astral-sh/setup-uv@v10.4.0
         with:
           python-version: '3.14'
-          cache: pip
-      - uses: pre-commit/action@v3.0.1
+          enable-cache: true
+      - name: Cache pre-commit environments
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pre-commit
+          key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      # pre-commit-uv makes pre-commit build its hook environments with uv.
+      - name: Run pre-commit
+        run: uvx --with pre-commit-uv pre-commit run --show-diff-on-failure --color=always --all-files
 
   pure-core:
     name: Pure core (no frappe import)
@@ -44,36 +51,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          enable-cache: true
 
       - name: Download Frappe semgrep rules
         run: git clone --depth 1 https://github.com/frappe/semgrep-rules.git frappe-semgrep-rules
 
       - name: Run semgrep
         run: |
-          pip install semgrep
-          semgrep ci --config ./frappe-semgrep-rules/rules --config r/python.lang.correctness
+          uvx semgrep ci --config ./frappe-semgrep-rules/rules --config r/python.lang.correctness
 
   deps-vulnerable-check:
     name: Vulnerable dependency check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.14'
-
       - uses: actions/checkout@v7
 
-      - name: Cache pip
-        uses: actions/cache@v6
+      - uses: astral-sh/setup-uv@v10.4.0
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-audit-${{ hashFiles('**/*requirements.txt', '**/pyproject.toml', '**/setup.py') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-audit-
-            ${{ runner.os }}-
+          python-version: '3.14'
+          enable-cache: true
+          cache-dependency-glob: '**/pyproject.toml'
 
-      - name: Install and run pip-audit
-        run: |
-          pip install pip-audit
-          pip-audit --desc on .
+      - name: Run pip-audit
+        run: uvx pip-audit --desc on .
 
