@@ -15,6 +15,7 @@ from frappe import _
 from local_payments import lifecycle as lc
 from local_payments import reconcile as rc
 from local_payments.gateway import SETTINGS_DOCTYPES
+from local_payments.user_context import as_user
 
 SKIP = "skip"
 SETTLE = "settle"
@@ -22,17 +23,6 @@ REFUSE = "refuse"
 
 # What frappe/payments gateways pass to on_payment_authorized when the money is in.
 PAID_STATUSES = ("Authorized", "Completed")
-
-# What frappe.set_user() replaces on frappe.local, apart from the cache.
-USER_STATE = (
-	"session",
-	"form_dict",
-	"role_permissions",
-	"new_doc_templates",
-	"user_perms",
-	"jenv_restricted",
-	"jenv_unrestricted",
-)
 
 
 def settlement_action(is_ours: bool, status: str, pr_docstatus: int, pr_status: str) -> str:
@@ -112,21 +102,13 @@ def void_open_sessions(doc, method=None):
 @contextmanager
 def as_administrator():
 	"""Run the block as Administrator, then put the caller's user and request state back as they were."""
-	saved = {name: getattr(frappe.local, name, None) for name in USER_STATE}
 	# ERPNext's create_payment_entry() sets this flag and never resets it.
 	ignore_account_permission = frappe.flags.ignore_account_permission
-	# set_user() writes into the session object, so give it a copy and keep the original untouched.
-	frappe.local.session = frappe._dict(frappe.local.session)
 	try:
-		# nosemgrep: frappe-setuser -- scoped to this block, caller's state restored in finally
-		frappe.set_user("Administrator")
-		yield
+		with as_user("Administrator"):
+			yield
 	finally:
-		for name, value in saved.items():
-			setattr(frappe.local, name, value)
 		frappe.flags.ignore_account_permission = ignore_account_permission
-		# Start empty: the caller's cache may be stale, and Administrator's must not outlive the block.
-		frappe.local.cache = {}
 
 
 def _is_ours(request) -> bool:

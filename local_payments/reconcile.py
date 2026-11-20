@@ -30,6 +30,7 @@ from frappe.utils.user import get_system_managers, get_users_with_role
 
 from local_payments import lifecycle as lc
 from local_payments.lifecycle import ProviderResult, Resolution
+from local_payments.user_context import as_user
 
 MANAGER_ROLE = "Local Payments Manager"
 MIN_CHECK_INTERVAL = timedelta(seconds=10)
@@ -384,12 +385,11 @@ def _call_consumer(session, attempt):
 	)
 	previous = frappe.flags.data
 	frappe.flags.data = frappe._dict(data)
-	previous_user = frappe.session.user
-	frappe.set_user(_consumer_user(session, previous_user))
 	try:
-		return reference.run_method("on_payment_authorized", "Completed")
+		# as_user() puts the caller's session, form data and caches back, which set_user() alone does not.
+		with as_user(_consumer_user(session, frappe.session.user)):
+			return reference.run_method("on_payment_authorized", "Completed")
 	finally:
-		frappe.set_user(previous_user)
 		frappe.flags.data = previous
 
 
