@@ -2,7 +2,6 @@
 # For license information, please see license.txt
 
 from collections.abc import Callable
-from dataclasses import asdict
 from datetime import timedelta
 
 import frappe
@@ -11,17 +10,13 @@ from frappe.model.document import Document
 from frappe.utils import cint, flt
 
 from local_payments import lifecycle as lc
-from local_payments import reconcile as rc
-from local_payments.gateway import MTN_MOMO_ICON, Initiated, LocalPaymentGateway
+from local_payments.gateway import Initiated, LocalPaymentGateway, OperatorChoice
 from local_payments.lifecycle import ProviderResult
 from local_payments.providers.common import Exchange, InvalidRequest
-from local_payments.providers.msisdn import MTN, ORANGE
 from local_payments.providers.nokash import (
 	CURRENCY,
 	MSISDN_NATIONAL_LENGTH,
 	MSISDN_PREFIX,
-	MTN_MOMO,
-	ORANGE_MONEY,
 	InitiationOutcome,
 	NokashClient,
 	NokashConfig,
@@ -31,14 +26,9 @@ from local_payments.providers.nokash import (
 )
 
 CALLBACK_PATH = "/api/method/local_payments.api.nokash_callback"
-OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
-OPERATOR_ICONS = {
-	MTN_MOMO: MTN_MOMO_ICON,
-	ORANGE_MONEY: "/assets/local_payments/images/operators/orange_money.svg",
-}
 
 
-class NokashSettings(LocalPaymentGateway, Document):
+class NokashSettings(OperatorChoice, LocalPaymentGateway, Document):
 	"""One Nokash merchant contract, for one or both operators.
 
 	gateway_name is set only once: the payment gateway is created under that name and is never renamed.
@@ -77,16 +67,6 @@ class NokashSettings(LocalPaymentGateway, Document):
 			if error.refused:
 				self.alert_refused(attempt_id)
 			raise
-
-	def alert_refused(self, attempt_id: str) -> None:
-		"""Tell the managers, once per attempt, that Nokash refused our key: no check can pass until it is fixed."""
-		filters = {"attempt_id": attempt_id, "parenttype": "Local Payment"}
-		row = frappe.db.get_value("Local Payment Attempt", filters, ("parent", "alerted"), as_dict=True)
-		if not row or row.alerted:
-			return
-		# Kept only if the alert goes out, as in reconcile().
-		frappe.db.set_value("Local Payment Attempt", filters, "alerted", 1, update_modified=False)
-		rc.alert_managers(row.parent, attempt_id, "provider_refused")
 
 	def verify_callback(
 		self, body: dict, header: str | None, attempt_id: str, transaction_id: str | None
@@ -132,32 +112,6 @@ class NokashSettings(LocalPaymentGateway, Document):
 			alert,
 		)
 
-	def payer_operators(self) -> list[dict]:
-		labels = {MTN_MOMO: _("MTN Mobile Money"), ORANGE_MONEY: _("Orange Money")}
-		offered = self.offered_operators()
-		# A single operator leaves nothing to choose.
-		if len(offered) < 2:
-			return []
-		return [{"value": op, "label": labels[op], "icon": OPERATOR_ICONS[op]} for op in offered]
-
-	def payer_icon(self) -> str | None:
-		offered = self.offered_operators()
-		return OPERATOR_ICONS[offered[0]] if len(offered) == 1 else None
-
-	def attempt_data(self, operator: str | None) -> dict:
-		offered = self.offered_operators()
-		if not operator and len(offered) == 1:
-			operator = offered[0]
-		if operator not in offered:
-			frappe.throw(_("Choose your mobile money operator."))
-		return asdict(NokashData(operator))
-
-	def payer_network(self, provider_data: dict) -> str | None:
-		return {MTN_MOMO: MTN, ORANGE_MONEY: ORANGE}.get(NokashData(**provider_data).operator)
-
-	def offered_operators(self) -> list[str]:
-		return [operator for operator, field in OPERATOR_FIELDS.items() if cint(self.get(field))]
-
 	def nokash_client(self, on_exchange: Callable[[Exchange], None] | None = None) -> NokashClient:
 		config = NokashConfig(
 			api_base_url=self.api_base_url,
@@ -176,10 +130,6 @@ class NokashSettings(LocalPaymentGateway, Document):
 		self.validate_callback_host()
 		if self.environment == "Production":
 			self.warn_if_no_alert_manager()
-
-	def validate_operators(self):
-		if not self.offered_operators():
-			frappe.throw(_("Accept at least one operator."))
 
 	def set_minimum_amount(self):
 		# An Int column can't be empty, so a cleared field arrives as 0 and falls back to the default.

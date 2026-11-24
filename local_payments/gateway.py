@@ -33,6 +33,16 @@ from local_payments.providers.msisdn import (
 CHECKOUT_PAGE = "local_payment_checkout"
 MTN_MOMO_ICON = "/assets/local_payments/images/operators/mtn_momo.png"
 
+# Saved in each attempt's provider_data, so a new spelling would orphan attempts already on record.
+# They are also Nokash's payment_method values.
+MTN_MOMO = "MTN_MOMO"
+ORANGE_MONEY = "ORANGE_MONEY"
+OPERATOR_FIELDS = {MTN_MOMO: "accept_mtn_momo", ORANGE_MONEY: "accept_orange_money"}
+OPERATOR_ICONS = {
+	MTN_MOMO: MTN_MOMO_ICON,
+	ORANGE_MONEY: "/assets/local_payments/images/operators/orange_money.svg",
+}
+
 # The Settings doctypes of this app's gateways. A Payment Gateway is ours if its gateway_settings is one of them.
 SETTINGS_DOCTYPES = ("MTN MoMo Settings", "Orange Money Settings", "Nokash Settings")
 
@@ -260,6 +270,16 @@ class LocalPaymentGateway:
 			indicator="orange",
 		)
 
+	def alert_refused(self, attempt_id: str) -> None:
+		"""Tell the managers, once per attempt, that the provider refused our key: no check can pass until it is fixed."""
+		filters = {"attempt_id": attempt_id, "parenttype": "Local Payment"}
+		row = frappe.db.get_value("Local Payment Attempt", filters, ("parent", "alerted"), as_dict=True)
+		if not row or row.alerted:
+			return
+		# Kept only if the alert goes out, as in reconcile().
+		frappe.db.set_value("Local Payment Attempt", filters, "alerted", 1, update_modified=False)
+		rc.alert_managers(row.parent, attempt_id, "provider_refused")
+
 	def log_refusal(self, attempt_id: str, session_name: str, detail: str) -> None:
 		# The detail names the outcome and the provider's codes only, never the payer's number.
 		frappe.log_error(
@@ -378,3 +398,40 @@ class LocalPaymentGateway:
 		# The consumer may be a Guest or a user without access to Local Payment.
 		rc.save_state(session)
 		return session.token
+
+
+class OperatorChoice:
+	"""Mixin for a gateway that reaches both networks: the payer picks among the operators its settings accept.
+
+	Put it before `LocalPaymentGateway`. The settings need `accept_mtn_momo` and `accept_orange_money`.
+	"""
+
+	def payer_operators(self) -> list[dict]:
+		labels = {MTN_MOMO: _("MTN Mobile Money"), ORANGE_MONEY: _("Orange Money")}
+		offered = self.offered_operators()
+		# A single operator leaves nothing to choose.
+		if len(offered) < 2:
+			return []
+		return [{"value": op, "label": labels[op], "icon": OPERATOR_ICONS[op]} for op in offered]
+
+	def payer_icon(self) -> str | None:
+		offered = self.offered_operators()
+		return OPERATOR_ICONS[offered[0]] if len(offered) == 1 else None
+
+	def attempt_data(self, operator: str | None) -> dict:
+		offered = self.offered_operators()
+		if not operator and len(offered) == 1:
+			operator = offered[0]
+		if operator not in offered:
+			frappe.throw(_("Choose your mobile money operator."))
+		return {"operator": operator}
+
+	def payer_network(self, provider_data: dict) -> str | None:
+		return {MTN_MOMO: MTN, ORANGE_MONEY: ORANGE}.get(provider_data.get("operator"))
+
+	def offered_operators(self) -> list[str]:
+		return [operator for operator, field in OPERATOR_FIELDS.items() if cint(self.get(field))]
+
+	def validate_operators(self):
+		if not self.offered_operators():
+			frappe.throw(_("Accept at least one operator."))
