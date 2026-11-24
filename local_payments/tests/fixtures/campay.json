@@ -1,0 +1,153 @@
+{
+	"_source": "Built from docs/openAPI/campay-collect-spec.json (sandbox, 2026-11-24). Reference, attempt id, transaction code and number replaced with fakes; the status signature is a placeholder. No token, webhook key or real signature. jwt_vector is the spec's own test vector, computed with test_webhook_key.",
+	"jwt_vector": {
+		"webhook_key": "test_webhook_key",
+		"jwt": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIsImFwcCI6IlRlc3QgYXBwIn0.eyJpYXQiOjE3OTU0OTI1OTIsIm5iZiI6MTc5NTQ5MjU5MiwiZXhwIjoxNzk1NDk2MTkyLCJzb3VyY2UiOiJDYW1QYXkifQ.qn_dCbUzJ8C28PjBWlbaYCtYhiod3uEWF8chNeoxOOw",
+		"valid_between_unix": [
+			1795492592,
+			1795496192
+		]
+	},
+	"collect_accepted": {
+		"status": 200,
+		"body": {
+			"reference": "0b8f6c2e-5a3d-4e1f-9c7b-2d4e6f8a1b3c",
+			"ussd_code": "*126#",
+			"operator": "MTN"
+		}
+	},
+	"collect_invalid_number": {
+		"status": 400,
+		"body": {
+			"error_code": "ER101",
+			"message": "Invalid phone number"
+		}
+	},
+	"collect_unsupported_carrier": {
+		"status": 400,
+		"body": {
+			"error_code": "ER102",
+			"message": "Unsupported carrier"
+		}
+	},
+	"collect_invalid_amount": {
+		"status": 400,
+		"body": {
+			"error_code": "ER201",
+			"message": "This is a demo system. Maximum amount is 100.00 XAF"
+		}
+	},
+	"collect_duplicate": {
+		"status": 429,
+		"body": {
+			"error_code": "DUPLICATE_ATTEMPT",
+			"message": "A request with this external reference is already being processed"
+		}
+	},
+	"status_pending": {
+		"status": 200,
+		"body": {
+			"reference": "0b8f6c2e-5a3d-4e1f-9c7b-2d4e6f8a1b3c",
+			"status": "PENDING",
+			"amount": "0.00",
+			"currency": "XAF",
+			"operator": "MTN",
+			"code": "CP000000TEST",
+			"operator_reference": "",
+			"endpoint": "collect",
+			"signature": "redacted",
+			"external_reference": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
+			"external_user": "",
+			"extra_first_name": "",
+			"extra_last_name": "",
+			"extra_email": "",
+			"app_amount": "0.00",
+			"phone_number": "237670000001",
+			"redirect_url": "",
+			"failure_redirect_url": "",
+			"description": "lp test",
+			"reason": "None"
+		}
+	},
+	"status_successful": {
+		"status": 200,
+		"body": {
+			"reference": "0b8f6c2e-5a3d-4e1f-9c7b-2d4e6f8a1b3c",
+			"status": "SUCCESSFUL",
+			"amount": "100.00",
+			"currency": "XAF",
+			"operator": "MTN",
+			"code": "CP000000TEST",
+			"operator_reference": "",
+			"endpoint": "collect",
+			"signature": "redacted",
+			"external_reference": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
+			"external_user": "",
+			"extra_first_name": "",
+			"extra_last_name": "",
+			"extra_email": "",
+			"app_amount": "100.00",
+			"phone_number": "237670000001",
+			"redirect_url": "",
+			"failure_redirect_url": "",
+			"description": "lp test",
+			"reason": "None"
+		}
+	},
+	"status_successful_sandbox": {
+		"status": 200,
+		"body": {
+			"reference": "0b8f6c2e-5a3d-4e1f-9c7b-2d4e6f8a1b3c",
+			"status": "SUCCESSFUL",
+			"amount": "0.00",
+			"currency": "XAF",
+			"operator": "MTN",
+			"code": "CP000000TEST",
+			"operator_reference": "",
+			"endpoint": "collect",
+			"signature": "redacted",
+			"external_reference": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
+			"external_user": "",
+			"extra_first_name": "",
+			"extra_last_name": "",
+			"extra_email": "",
+			"app_amount": "0.00",
+			"phone_number": "237670000001",
+			"redirect_url": "",
+			"failure_redirect_url": "",
+			"description": "lp test",
+			"reason": "None"
+		}
+	},
+	"status_failed": {
+		"status": 200,
+		"body": {
+			"reference": "0b8f6c2e-5a3d-4e1f-9c7b-2d4e6f8a1b3c",
+			"status": "FAILED",
+			"amount": "0.00",
+			"currency": "XAF",
+			"operator": "MTN",
+			"code": "CP000000TEST",
+			"operator_reference": "",
+			"endpoint": "collect",
+			"signature": "redacted",
+			"external_reference": "3f5c1c6e-8f4b-4a57-9d9a-3b1f5f0f2a11",
+			"external_user": "",
+			"extra_first_name": "",
+			"extra_last_name": "",
+			"extra_email": "",
+			"app_amount": "0.00",
+			"phone_number": "237670000001",
+			"redirect_url": "",
+			"failure_redirect_url": "",
+			"description": "lp test",
+			"reason": "TESTING"
+		}
+	},
+	"status_not_found": {
+		"status": 404,
+		"body": {
+			"message": "Not found"
+		}
+	}
+}

@@ -1,0 +1,263 @@
+{
+  "title": "CamPay Collect API - specification for local_payments",
+  "scope_note": [
+    "Extract, not the full CamPay documentation. It keeps only what local_payments implements: push-to-phone collect, transaction status and the inbound webhook.",
+    "Payment links, withdrawals, balance, history, mass payouts and the temporary token flow exist at CamPay and are out of scope (see endpoints_not_used).",
+    "Where the official documentation and the sandbox disagree, this file follows what the sandbox returned on 2026-11-24 and says so in the entry's notes."
+  ],
+  "source": {
+    "url": "https://documenter.getpostman.com/view/2391374/T1LV8PVA",
+    "nature": "Official Postman documentation, plus the sandbox dashboard and real calls made against the sandbox with a permanent access token.",
+    "read_on": "2026-11-24",
+    "sandbox_dashboard": "https://demo.campay.net/en/developer/"
+  },
+  "base_url": {
+    "sandbox": "https://demo.campay.net/api",
+    "production": "https://www.campay.net/api"
+  },
+  "country": "CM",
+  "currency": "XAF",
+
+  "credentials": {
+    "permanent_access_token": "Shown under API ACCESS KEYS of the CamPay application. Does not expire; regenerable in the dashboard. Server-side only. The only credential local_payments uses to call CamPay.",
+    "webhook_key": "Shown under API ACCESS KEYS. HS256 key of the JWT carried by the webhook. Server-side only.",
+    "not_used": {
+      "app_id": "Identifies the application in the dashboard. Not needed by the API calls below.",
+      "app_username": "Only for POST /token/ (temporary token flow, not used).",
+      "app_password": "Only for POST /token/ (temporary token flow, not used)."
+    }
+  },
+
+  "authentication": {
+    "header": "Authorization",
+    "format": "Token {permanent_access_token}",
+    "other_headers": {
+      "Content-Type": "application/json"
+    },
+    "notes": [
+      "The scheme word is Token, not Bearer.",
+      "HTTP status for a missing or invalid token was not captured (the test tool masked it). Treat any 401 or 403 as a refusal of our credentials."
+    ]
+  },
+
+  "amounts": {
+    "format": "Whole number of XAF, sent as a string, e.g. \"100\". Decimals are refused (ER201).",
+    "sandbox_maximum": 100,
+    "sandbox_maximum_source": "Dashboard banner and ER201 message: \"This is a demo system. Maximum amount is 100.00 XAF\".",
+    "minimum": "Not documented. Zero is refused (ER201).",
+    "production_limits": "Not documented. To ask CamPay before go-live."
+  },
+
+  "phone_number": {
+    "format": "237 followed by the 9 national digits, no plus sign, e.g. \"237677777777\".",
+    "operator_detection": "CamPay deduces MTN or Orange from the number. The operator is not sent."
+  },
+
+  "errors": {
+    "envelope": {
+      "http_status": 400,
+      "body": {
+        "error_code": "ER101",
+        "message": "Invalid phone number"
+      }
+    },
+    "codes": {
+      "ER101": "Invalid phone number. Observed for a number without the 237 prefix and for a well-formed number of an unsupported carrier.",
+      "ER102": "Unsupported carrier, per the documentation. Not observed in the sandbox (ER101 came back instead). Handle it like ER101.",
+      "ER201": "Invalid amount: decimal, zero, or above the sandbox maximum.",
+      "DUPLICATE_ATTEMPT": "HTTP 429. external_reference already used by a transaction still being processed. Message: \"A request with this external reference is already being processed\"."
+    },
+    "notes": [
+      "The documentation says a repeated external_reference returns the result of the first request. The sandbox answered 429 DUPLICATE_ATTEMPT instead while the first transaction was PENDING. Behaviour after the first transaction ends was not tested."
+    ]
+  },
+
+  "transaction_statuses": {
+    "PENDING": "Prompt sent to the payer, waiting for the PIN. Default status after collect.",
+    "SUCCESSFUL": "Paid.",
+    "FAILED": "Declined, failed or abandoned. reason may explain it."
+  },
+  "status_notes": [
+    "There is no expiry status. Leaving PENDING by timeout is decided locally.",
+    "Sandbox timings observed: MTN success number PENDING to SUCCESSFUL in about 32 s; Orange failure number PENDING to FAILED in about 21 s.",
+    "reason is the string \"None\" while PENDING and on success, \"TESTING\" on a sandbox failure."
+  ],
+
+  "test_numbers": {
+    "237677777777": "MTN, PENDING then SUCCESSFUL",
+    "237677777770": "MTN, PENDING then FAILED",
+    "237699999999": "Orange, PENDING then SUCCESSFUL",
+    "237699999990": "Orange, PENDING then FAILED",
+    "note": "Only these numbers are accepted in the sandbox."
+  },
+
+  "endpoints_used": [
+    {
+      "name": "collect",
+      "purpose": "Send the mobile money prompt (USSD push) to the payer's phone.",
+      "method": "POST",
+      "path": "/collect/",
+      "request_body": {
+        "amount": "100",
+        "currency": "XAF",
+        "from": "237677777777",
+        "description": "Payment description shown to the payer",
+        "external_reference": "2ceefe04-1a79-4914-9dd0-c61748c2aecd"
+      },
+      "request_fields": {
+        "amount": "Required. Whole XAF as a string.",
+        "currency": "Required. XAF.",
+        "from": "Required. Payer number, see phone_number.",
+        "description": "Required. No personal data.",
+        "external_reference": "Optional at CamPay, always sent by local_payments. Must be a UUID4: we send the attempt_id. Returned by the status endpoint and the webhook."
+      },
+      "response_success": {
+        "http_status": 200,
+        "body": {
+          "reference": "d4d24048-c113-41bc-87dd-9cd433051428",
+          "ussd_code": "*126#",
+          "operator": "MTN"
+        }
+      },
+      "response_fields": {
+        "reference": "CamPay transaction id (UUID). The only key accepted by the status endpoint: store it.",
+        "ussd_code": "*126# for MTN, #150*50# for Orange. Can be shown to a payer who missed the prompt.",
+        "operator": "MTN or Orange, as deduced by CamPay."
+      },
+      "response_errors": "See errors. HTTP 400 for ER101 and ER201, 429 for DUPLICATE_ATTEMPT.",
+      "observed_latency_ms": "400 to 800"
+    },
+    {
+      "name": "transaction_status",
+      "purpose": "Authenticated read of a transaction. The only proof of payment.",
+      "method": "GET",
+      "path": "/transaction/{reference}/",
+      "path_parameters": {
+        "reference": "Value returned by collect. Lookup by external_reference is not documented."
+      },
+      "response_success": {
+        "http_status": 200,
+        "body": {
+          "reference": "d4d24048-c113-41bc-87dd-9cd433051428",
+          "status": "SUCCESSFUL",
+          "amount": "0.00",
+          "currency": "XAF",
+          "operator": "MTN",
+          "code": "D261124D0005BL",
+          "operator_reference": "",
+          "endpoint": "collect",
+          "signature": "<JWT, see inbound_notification.signature>",
+          "external_reference": "2ceefe04-1a79-4914-9dd0-c61748c2aecd",
+          "external_user": "",
+          "extra_first_name": "",
+          "extra_last_name": "",
+          "extra_email": "",
+          "app_amount": "0.00",
+          "phone_number": "237677777777",
+          "redirect_url": "",
+          "failure_redirect_url": "",
+          "description": "lp test",
+          "reason": "None"
+        }
+      },
+      "response_fields": {
+        "status": "PENDING, SUCCESSFUL or FAILED.",
+        "amount": "Decimal string. Compared with the session amount before a session becomes Paid.",
+        "currency": "XAF. Compared with the session currency.",
+        "operator": "MTN or Orange.",
+        "code": "CamPay transaction code shown to support.",
+        "operator_reference": "Operator transaction id. Empty in the sandbox.",
+        "external_reference": "Our attempt_id.",
+        "app_amount": "Amount credited to the CamPay application after fees.",
+        "reason": "Failure reason, or the string \"None\"."
+      },
+      "response_errors": {
+        "404": "Unknown reference. Body {\"message\": \"Not found\"}."
+      },
+      "notes": [
+        "Sandbox quirk: amount and app_amount stay \"0.00\" even when status is SUCCESSFUL. A sandbox success therefore cannot pass the amount check. Production behaviour must be confirmed on a real payment before relying on it.",
+        "Rate limit not documented. The official SDK polls every 3 s."
+      ]
+    }
+  ],
+
+  "inbound_notification": {
+    "name": "webhook",
+    "purpose": "CamPay notifies a final status. Used only as a trigger for a status check: its parameters are never trusted.",
+    "configured_in": "Dashboard, per CamPay application: one callback URL and a method selector (GET or POST).",
+    "target": "{host_name}/api/method/local_payments.api.campay_callback",
+    "method": "GET (query string) or POST (JSON body), as chosen in the dashboard. Accept both.",
+    "sent_when": "The transaction becomes SUCCESSFUL or FAILED.",
+    "delivery": "Sent once, never retried by CamPay. Can be resent by hand from the dashboard.",
+    "parameters": {
+      "status": "SUCCESSFUL or FAILED",
+      "reference": "CamPay transaction id",
+      "amount": "Transaction amount",
+      "currency": "XAF",
+      "operator": "MTN or ORANGE",
+      "code": "CamPay transaction code",
+      "operator_reference": "Operator transaction id",
+      "signature": "JWT, see signature",
+      "endpoint": "collect or withdraw",
+      "external_reference": "Our attempt_id",
+      "external_user": "Unused",
+      "extra_first_name": "Unused",
+      "extra_last_name": "Unused",
+      "extra_email": "Unused",
+      "phone_number": "Payer number",
+      "redirect_url": "Unused",
+      "failure_redirect_url": "Unused",
+      "description": "Description sent with collect",
+      "reason": "Failure reason",
+      "app_amount": "Amount after fees"
+    },
+    "signature": {
+      "format": "JWT, three base64url parts",
+      "algorithm": "HS256",
+      "key": "webhook_key",
+      "header_observed": {
+        "typ": "JWT",
+        "alg": "HS256",
+        "app": "<CamPay application name>"
+      },
+      "claims_observed": {
+        "iat": "Issued at, Unix seconds",
+        "nbf": "Not before, equal to iat",
+        "exp": "iat + 3600",
+        "source": "CamPay"
+      },
+      "binds_to_transaction": false,
+      "notes": [
+        "Claims observed on the signature field of the status response; assumed identical in the webhook. Not yet seen on a real webhook delivery.",
+        "The JWT carries no status, reference or amount. It proves the call comes from CamPay, nothing about the parameters next to it.",
+        "Verify: alg is HS256, signature in constant time, nbf and exp with a small leeway. Reject anything else."
+      ],
+      "test_vector": {
+        "origin": "Computed by us with the claims observed in the sandbox. Not an official CamPay vector.",
+        "webhook_key": "test_webhook_key",
+        "jwt": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiIsImFwcCI6IlRlc3QgYXBwIn0.eyJpYXQiOjE3OTU0OTI1OTIsIm5iZiI6MTc5NTQ5MjU5MiwiZXhwIjoxNzk1NDk2MTkyLCJzb3VyY2UiOiJDYW1QYXkifQ.qn_dCbUzJ8C28PjBWlbaYCtYhiod3uEWF8chNeoxOOw",
+        "valid_between_unix": [1795492592, 1795496192]
+      }
+    },
+    "expected_response": "Any 2xx. CamPay does not read the body."
+  },
+
+  "endpoints_not_used": {
+    "POST /token/": "Temporary token (expires_in in seconds, 3600 in the example). Replaced by the permanent access token.",
+    "POST /get_payment_link/": "Redirect payment page. Out of scope: no redirect.",
+    "POST /withdraw/": "Disbursement. Out of scope in v1 (no disbursements).",
+    "GET /balance/": "Application balance. Not needed.",
+    "POST /history/": "Transaction history. Not needed.",
+    "Phone number holder info, mass payout": "Not needed."
+  },
+
+  "open_points": [
+    "Production: are amount and currency filled on SUCCESSFUL? Confirm with one real small payment before go-live.",
+    "HTTP status for a missing, invalid or revoked token.",
+    "Rate limit on GET /transaction/{reference}/.",
+    "How long a real transaction can stay PENDING before FAILED.",
+    "Production minimum and maximum amounts per operator.",
+    "Behaviour of a repeated external_reference after the first transaction has ended.",
+    "Webhook JWT claims on a real delivery."
+  ]
+}
