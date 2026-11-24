@@ -186,6 +186,31 @@ class TestCheckoutPage(CheckoutTestCase):
 		self.assertIn("/orders/42", content)
 		self.assertNotIn(FORM, content)
 
+	def test_a_success_that_left_the_session_open_is_under_review_and_offers_no_new_payment(self):
+		icon = "/assets/local_payments/images/operators/mtn_momo.png"
+		operators = [{"value": "ONE", "label": "Operator One"}]
+		session = make_session({"status": "Failed"}, {"status": "Succeeded", "amount_mismatch": 1})
+		with (
+			patch.object(LocalPaymentsTestSettings, "payer_operators", return_value=operators),
+			patch.object(LocalPaymentsTestSettings, "payer_icon", return_value=icon),
+		):
+			content = self.render(session.token)
+
+		self.assertIn("Payment under review", content)
+		self.assertIn("Do not pay again", content)
+		self.assertIn('data-waiting="0"', content)
+		self.assertNotIn(FORM, content)
+		self.assertNotIn("Operator One", content)
+		self.assertNotIn(icon, content)
+
+	def test_a_settled_attempt_other_than_a_success_offers_a_new_payment(self):
+		for attempt in ("Failed", "Expired", "Error"):
+			with self.subTest(attempt=attempt):
+				content = self.render(make_session({"status": attempt}).token)
+
+				self.assertIn(FORM, content)
+				self.assertNotIn("Payment under review", content)
+
 	def test_void_session_shows_its_outcome_instead_of_the_form(self):
 		session = make_session(status="Void")
 		content = self.render(session.token)

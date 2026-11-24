@@ -444,7 +444,8 @@ Rules carried by `lifecycle.py`:
   automatic.
 - A successful attempt whose amount or currency differs from the session is
   marked `amount_mismatch`. The session stays `Open` and an alert is
-  raised.
+  raised. The checkout page shows the payment as under review and offers no
+  new payment: the payer may have been charged.
 - A successful attempt on a `Void` session stays `Succeeded`, the session
   stays `Void`, and an alert is raised (`void_paid`): the money arrived after
   the cancellation and is handled by hand.
@@ -485,7 +486,7 @@ payment. The PayPal and Razorpay gateways also populate
 | Entry point                                                | Method    | Access                     | Effect                                                                                                             |
 | ---------------------------------------------------------- | --------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `/local_payment_checkout?token=…`                       | GET       | guest                      | Displays the session. No side effect.                                                                              |
-| `local_payments.api.start_attempt(token, msisdn, operator)` | POST   | guest,`rate_limit`       | Checks the number and the operator, if the gateway offers a choice, creates an attempt and calls initiation. Returns the same state as`get_status`. |
+| `local_payments.api.start_attempt(token, msisdn, operator)` | POST   | guest,`rate_limit`       | Checks the number and the operator, if the gateway offers a choice, creates an attempt and calls initiation. Returns the same state as`get_status`. An initiation the provider refuses leaves the attempt in `Error` and answers with a refusal that tells the payer whether to check the number or use another one (the provider turned down the number or the amount) or that the payment method is unavailable (our keys or settings). |
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
 | `local_payments.api.nokash_callback?attempt=…`          | POST      | guest,`rate_limit`       | Same as the MTN callback: queues`reconcile()`, and its body is never read. |

@@ -187,7 +187,19 @@ def _start(token: str, msisdn: str, operator: str | None) -> dict:
 		)
 
 	session = _session_or_404(token)
-	return payer_status(session, current_attempt(session.name))
+	state = payer_status(session, current_attempt(session.name))
+	if state["attempt_status"] == lc.ERROR:
+		# The attempt is on record as Error. The payer is told why it stopped, and can try again.
+		frappe.throw(refusal_message(started))
+	return state
+
+
+def refusal_message(started: Initiated) -> str:
+	"""What the payer reads when the provider refused the request: whom it is up to, never the provider's codes."""
+	if started.payer_refused:
+		return _("This payment request was refused. Check the number, or use another mobile money number.")
+	# Our keys or settings: the managers are alerted where the provider tells them apart (provider_refused).
+	return _("This payment method is not available at the moment.")
 
 
 def _open_attempt(session_name: str, msisdn: str, timeout_minutes: int, provider_data: dict) -> str:

@@ -283,26 +283,28 @@ class TestCamPaySettings(IntegrationTestCase):
 
 	def test_initiation_outcomes(self):
 		cases = {
-			"accepted": (recorded("collect_accepted"), lc.INITIATED, REFERENCE, None, "Completed"),
-			"invalid number": (recorded("collect_invalid_number"), lc.ERROR, None, None, "Failed"),
-			"invalid amount": (recorded("collect_invalid_amount"), lc.ERROR, None, None, "Failed"),
+			"accepted": (recorded("collect_accepted"), lc.INITIATED, REFERENCE, None, False, "Completed"),
+			"invalid number": (recorded("collect_invalid_number"), lc.ERROR, None, None, True, "Failed"),
+			"invalid amount": (recorded("collect_invalid_amount"), lc.ERROR, None, None, True, "Failed"),
 			"refused token": (
 				http_response(401, {"detail": "x"}),
 				lc.ERROR,
 				None,
 				"provider_refused",
+				False,
 				"Failed",
 			),
-			"duplicate": (recorded("collect_duplicate"), lc.INITIATED, None, None, "Failed"),
-			"server error": (http_response(500), lc.INITIATED, None, None, "Failed"),
-			"timeout": (requests.ReadTimeout(), lc.INITIATED, None, None, "Failed"),
+			"duplicate": (recorded("collect_duplicate"), lc.INITIATED, None, None, False, "Failed"),
+			"server error": (http_response(500), lc.INITIATED, None, None, False, "Failed"),
+			"timeout": (requests.ReadTimeout(), lc.INITIATED, None, None, False, "Failed"),
 		}
-		for case, (answer, status, reference, alert, logged) in cases.items():
+		for case, (answer, status, reference, alert, payer_refused, logged) in cases.items():
 			with self.subTest(case):
 				started, request = self.initiate(answer)
 				self.assertEqual(request.call_count, 1)
 				self.assertEqual(
-					(started.status, started.transaction_id, started.alert), (status, reference, alert)
+					(started.status, started.transaction_id, started.alert, started.payer_refused),
+					(status, reference, alert, payer_refused),
 				)
 				self.assertEqual(
 					frappe.db.get_value("Integration Request", started.integration_request, "status"), logged
@@ -324,6 +326,7 @@ class TestCamPaySettings(IntegrationTestCase):
 		session = frappe._dict(name=self.session().name, amount=100.5, title="x")
 		started, request = self.initiate(recorded("collect_accepted"), session)
 		self.assertEqual((started.status, started.integration_request), (lc.ERROR, None))
+		self.assertTrue(started.payer_refused)
 		request.assert_not_called()
 
 	def test_a_number_of_the_other_network_is_refused_before_anything_is_recorded_or_sent(self):

@@ -750,6 +750,14 @@ msgstr ""
 msgid "Payment received"
 msgstr ""
 
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Payment under review"
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Your operator sent a confirmation that we must check before your payment is validated. Do not pay again. If you need help, contact the sender of this link."
+msgstr ""
+
 #: local_payments/reconcile.py:465
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr ""
@@ -1023,6 +1031,10 @@ msgstr ""
 
 #: local_payments/api.py:159
 msgid "This payment method is not available at the moment."
+msgstr ""
+
+#: local_payments/api.py
+msgid "This payment request was refused. Check the number, or use another mobile money number."
 msgstr ""
 
 #: local_payments/gateway.py:335

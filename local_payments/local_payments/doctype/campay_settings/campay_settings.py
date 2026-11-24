@@ -98,7 +98,7 @@ class CamPaySettings(OperatorChoice, LocalPaymentGateway, Document):
 		except InvalidRequest as refused:
 			# Refused before any call, so there is nothing at CamPay to query.
 			self.log_refusal(attempt_id, session.name, str(refused))
-			return Initiated(lc.ERROR)
+			return Initiated(lc.ERROR, payer_refused=True)
 
 		status, alert = lc.INITIATED, None
 		if initiation.outcome == InitiationOutcome.REJECTED:
@@ -118,6 +118,8 @@ class CamPaySettings(OperatorChoice, LocalPaymentGateway, Document):
 			),
 			initiation.reference,
 			alert,
+			# ER101, ER102, ER201: CamPay turned down the number or the amount, not our token.
+			payer_refused=status == lc.ERROR and not initiation.credentials_refused,
 		)
 
 	def description_for(self, session) -> str:

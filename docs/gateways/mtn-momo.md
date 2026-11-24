@@ -79,8 +79,8 @@ leaves the attempt status to its caller.
 | `202` on RequestToPay | `Initiated` | Request accepted, queued at MTN. |
 | `409` on RequestToPay | `Initiated` | The `X-Reference-Id` already exists at MTN. The page goes straight to status polling. |
 | Timeout or `5xx` error on RequestToPay | `Initiated` | The attempt is committed before the call: the status remains queryable. |
-| `400`, or `401` after the token renewal, on RequestToPay | `Error` | MTN created nothing. Logged in Error Log. The payer can try again. |
-| No token could be obtained before RequestToPay | `Error` | The request never left. The payer can try again. |
+| `400`, or `401` after the token renewal, on RequestToPay | `Error` | MTN created nothing. Logged in Error Log. The page says the payment method is unavailable; the payer can try again. |
+| No token could be obtained before RequestToPay | `Error` | The request never left. The page says the payment method is unavailable; the payer can try again. |
 | `PENDING` | `Pending` | Waiting for the payer's approval. |
 | `SUCCESSFUL` | `Succeeded` | Amount and currency compared to the session. |
 | `FAILED` | `Failed` | Whatever the reason. `provider_status` keeps it, e.g. `FAILED: NOT_ENOUGH_FUNDS`. |

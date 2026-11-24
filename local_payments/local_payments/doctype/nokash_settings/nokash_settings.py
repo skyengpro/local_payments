@@ -92,7 +92,7 @@ class NokashSettings(OperatorChoice, LocalPaymentGateway, Document):
 		except InvalidRequest as refused:
 			# Refused before any call, so there is nothing at Nokash to query.
 			self.log_refusal(attempt_id, session.name, str(refused))
-			return Initiated(lc.ERROR)
+			return Initiated(lc.ERROR, payer_refused=True)
 
 		status, alert = lc.INITIATED, None
 		if initiation.outcome == InitiationOutcome.REJECTED:

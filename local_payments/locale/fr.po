@@ -750,6 +750,14 @@ msgstr "Paiement reçu sur {0}, mais son autorisation a échoué. Corrigez la ca
 msgid "Payment received"
 msgstr "Paiement reçu"
 
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Payment under review"
+msgstr "Paiement en cours de vérification"
+
+#: local_payments/templates/pages/local_payment_checkout.html
+msgid "Your operator sent a confirmation that we must check before your payment is validated. Do not pay again. If you need help, contact the sender of this link."
+msgstr "Votre opérateur a envoyé une confirmation que nous devons vérifier avant de valider votre paiement. Ne payez pas une deuxième fois. Si vous avez besoin d'aide, contactez l'expéditeur de ce lien."
+
 #: local_payments/reconcile.py:465
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr "Paiement reçu sur {0} (tentative {1}) après son annulation. Le traiter à la main."
@@ -1022,6 +1030,10 @@ msgstr "Ce paiement ne peut plus être effectué depuis cette page."
 #: local_payments/api.py:159
 msgid "This payment method is not available at the moment."
 msgstr "Ce moyen de paiement n'est pas disponible pour le moment."
+
+#: local_payments/api.py
+msgid "This payment request was refused. Check the number, or use another mobile money number."
+msgstr "Cette demande de paiement a été refusée. Vérifiez le numéro, ou utilisez un autre numéro mobile money."
 
 #: local_payments/gateway.py:335
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."

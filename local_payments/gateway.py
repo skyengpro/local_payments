@@ -63,13 +63,16 @@ NETWORK_LOG_SAVEPOINT = "lp_network_log"
 class Initiated:
 	"""What starting an attempt did: its status, the exchange's Integration Request, the provider's id.
 
-	`alert` is the `alert_managers` reason to send once the attempt is saved, if any.
+	`alert` is the `alert_managers` reason to send once the attempt is saved, if any. `payer_refused`
+	marks an Error the payer can fix, by checking the number or using another one: the provider turned
+	down the number or the amount, not our keys or settings.
 	"""
 
 	status: str
 	integration_request: str | None = None
 	transaction_id: str | None = None
 	alert: str | None = None
+	payer_refused: bool = False
 
 
 def log_error(title: str, session_name: str | None = None, detail: str | None = None) -> None:

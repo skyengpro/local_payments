@@ -204,7 +204,8 @@ class TestStartAttempt(CheckoutTestCase):
 
 	def test_a_refused_initiation_ends_in_error_and_the_payer_can_try_again(self):
 		session = make_session()
-		self.start(session, fake=FakeInitiate(Initiated(lc.ERROR, "fake-integration-request")))
+		with self.assertRaises(frappe.ValidationError):
+			self.start(session, fake=FakeInitiate(Initiated(lc.ERROR, "fake-integration-request")))
 
 		(row,) = attempts(session)
 		self.assertEqual(row.status, lc.ERROR)
@@ -214,6 +215,22 @@ class TestStartAttempt(CheckoutTestCase):
 		state, _fake = self.start(session)
 		self.assertEqual(state["attempt_status"], lc.INITIATED)
 		self.assertEqual(len(attempts(session)), 2)
+
+	def test_a_refusal_tells_the_payer_whether_another_number_can_help(self):
+		cases = (
+			(Initiated(lc.ERROR, payer_refused=True), "Check the number"),
+			(Initiated(lc.ERROR, alert="provider_refused"), "not available at the moment"),
+			(Initiated(lc.ERROR), "not available at the moment"),
+		)
+		for started, expected in cases:
+			with self.subTest(started=started):
+				session = make_session()
+				with self.assertRaises(frappe.ValidationError) as raised:
+					self.start(session, fake=FakeInitiate(started))
+				self.assertIn(expected, str(raised.exception))
+				self.assertNotIn(NATIONAL, str(raised.exception))
+				(row,) = attempts(session)
+				self.assertEqual(row.status, lc.ERROR)
 
 	def test_an_unexpected_failure_leaves_an_attempt_to_query_and_no_number_in_the_log(self):
 		def fail(attempt_id):

@@ -77,8 +77,8 @@ It reports what CamPay answered and leaves the attempt status to its caller.
 | CamPay response | Attempt status | Note |
 | --------------- | -------------- | ---- |
 | 200 with a `reference` on collect | `Initiated` | `reference` is recorded on the attempt. Only a status check decides. |
-| 400 `ER101`, `ER102` or `ER201` on collect | `Error` | Number or amount refused, nothing created. Logged in Error Log. The payer can try again. |
-| 401 or 403 on collect | `Error` | The token was refused. Logged, managers alerted once per attempt. |
+| 400 `ER101`, `ER102` or `ER201` on collect | `Error` | Number or amount refused, nothing created. Logged in Error Log. The page asks the payer to check the number or use another one. |
+| 401 or 403 on collect | `Error` | The token was refused. Logged, managers alerted once per attempt. The page says the payment method is unavailable. |
 | 429 `DUPLICATE_ATTEMPT` on collect | `Initiated`, no reference | A transaction may exist under this `external_reference`. Never sent again. |
 | Timeout, `5xx`, redirect, unreadable body, other `429` or `400`, 200 without a usable `reference` on collect | `Initiated` | The outcome is unknown: the request may have reached the payer's phone. |
 | `PENDING` | `Pending` | Waiting for the payer. |
@@ -147,7 +147,8 @@ sequenceDiagram
   and in `validate_minimum_transaction_amount()`, which ERPNext calls first.
 - **Sandbox amount.** The sandbox reports `amount` `0.00` even on
   `SUCCESSFUL`. Such a success ends as `Succeeded` with `amount_mismatch`, and
-  the session stays `Open`. There is no sandbox exception to the amount check.
+  the session stays `Open`, and the checkout page shows the payment as under
+  review. There is no sandbox exception to the amount check.
 - **Number.** Sent as `237` followed by the 9-digit national number. The prefix
   must belong to the chosen operator. CamPay picks the operator from the number
   and answers `ER101` for an unsupported one.

@@ -282,21 +282,28 @@ class TestInitiate(IntegrationTestCase):
 
 	def test_each_mtn_answer_gives_the_attempt_status_and_log_status(self):
 		cases = {
-			"accepted": ([http_response(202)], lc.INITIATED, "Completed"),
+			"accepted": ([http_response(202)], lc.INITIATED, False, "Completed"),
 			"duplicate reference": (
 				[http_response(409, {"code": "RESOURCE_ALREADY_EXIST"})],
 				lc.INITIATED,
+				False,
 				"Completed",
 			),
-			"server error": ([http_response(500)], lc.INITIATED, "Failed"),
-			"timeout": ([requests.ReadTimeout()], lc.INITIATED, "Failed"),
-			"rejected": ([http_response(400, {"code": "PAYER_NOT_FOUND"})], lc.ERROR, "Failed"),
-			"unauthorized": ([http_response(401), token_response(), http_response(401)], lc.ERROR, "Failed"),
+			"server error": ([http_response(500)], lc.INITIATED, False, "Failed"),
+			"timeout": ([requests.ReadTimeout()], lc.INITIATED, False, "Failed"),
+			"rejected": ([http_response(400, {"code": "PAYER_NOT_FOUND"})], lc.ERROR, False, "Failed"),
+			"key refused": ([http_response(403)], lc.ERROR, False, "Failed"),
+			"unauthorized": (
+				[http_response(401), token_response(), http_response(401)],
+				lc.ERROR,
+				False,
+				"Failed",
+			),
 		}
-		for case, (replies, status, log_status) in cases.items():
+		for case, (replies, status, payer_refused, log_status) in cases.items():
 			with self.subTest(case):
 				started, _request = self.initiate(token_response(), *replies)
-				self.assertEqual(started.status, status)
+				self.assertEqual((started.status, started.payer_refused), (status, payer_refused))
 				self.assertEqual(
 					frappe.db.get_value("Integration Request", started.integration_request, "status"),
 					log_status,
@@ -305,6 +312,8 @@ class TestInitiate(IntegrationTestCase):
 	def test_no_token_means_error_and_no_log(self):
 		started, request = self.initiate(requests.ConnectTimeout())
 		self.assertEqual((started.status, started.integration_request), (lc.ERROR, None))
+		# No token: our keys or MTN, not the payer.
+		self.assertFalse(started.payer_refused)
 		self.assertEqual(request.call_count, 1)
 
 	def test_a_refused_request_is_logged_without_the_payer_number(self):

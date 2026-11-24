@@ -27,6 +27,9 @@ def get_context(context):
 	attempt = api.current_attempt(session.name)
 	# Only an Open session waits: on a Void one, polling would reload the page forever.
 	waiting = session.status == lc.OPEN and bool(attempt and attempt.status in rc.CHECKABLE_STATES)
+	# A success that left the session Open did not match it (amount or currency): the managers are
+	# alerted, and the payer, who may have been charged, must not be offered to pay again.
+	under_review = session.status == lc.OPEN and bool(attempt and attempt.status == lc.SUCCEEDED)
 	context.update(
 		token=frappe.form_dict.token,
 		session_title=_display_title(session),
@@ -36,9 +39,10 @@ def get_context(context):
 		status=session.status,
 		redirect_url=api.exit_url(session) if session.status == lc.PAID else None,
 		waiting=waiting,
+		under_review=under_review,
 		# The form stays hidden while waiting, and the page reloads when that ends.
 		operators=api.payer_operators(session) if session.status == lc.OPEN and not waiting else [],
-		payer_icon=api.payer_icon(session) if session.status == lc.OPEN else None,
+		payer_icon=api.payer_icon(session) if session.status == lc.OPEN and not under_review else None,
 		# Any non-empty value replaces the "Powered by" credit in the site footer.
 		footer_powered=" ",
 	)

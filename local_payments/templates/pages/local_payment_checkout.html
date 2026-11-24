@@ -21,7 +21,10 @@
 		<p class="text-muted">{{ _("Payment by {0}").format(provider) }}</p>
 	</div>
 
-	{% if status == "Open" %}
+	{% if status == "Open" and under_review %}
+		<p><span class="indicator orange">{{ _("Payment under review") }}</span></p>
+		<p class="text-muted">{{ _("Your operator sent a confirmation that we must check before your payment is validated. Do not pay again. If you need help, contact the sender of this link.") }}</p>
+	{% elif status == "Open" %}
 		{% if operators %}
 			<section id="lp-choose-operator" class="lp-step">
 				<p class="lp-step-title">{{ _("Choose your mobile money operator.") }}</p>

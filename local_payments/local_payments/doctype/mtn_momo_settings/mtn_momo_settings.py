@@ -91,12 +91,14 @@ class MTNMoMoSettings(LocalPaymentGateway, Document):
 		except InvalidRequest as refused:
 			# Refused before any call, so there is nothing at MTN to query.
 			self.log_refusal(attempt_id, session.name, str(refused))
-			return Initiated(lc.ERROR)
+			return Initiated(lc.ERROR, payer_refused=True)
 
 		status = INITIATION_STATUSES[initiation.outcome]
 		if status == lc.ERROR:
 			detail = ", ".join(str(part) for part in (initiation.http_status, initiation.code) if part)
 			self.log_refusal(attempt_id, session.name, f"{initiation.outcome} ({detail or 'no response'})")
+		# A 4xx on RequestToPay means our request did not comply (docs/gateways/mtn-momo.md): the payer can't
+		# fix it. MTN turns the payer down later, as a FAILED status.
 		return Initiated(
 			status, self.log_exchanges(attempt_id, session.name, exchanges, initiation.outcome in TAKEN_IN)
 		)

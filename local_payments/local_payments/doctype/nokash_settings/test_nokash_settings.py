@@ -573,13 +573,18 @@ class TestNokashSettings(IntegrationTestCase):
 					http.return_value.request.side_effect = answer
 				else:
 					http.return_value.request.return_value = answer
-				state = api.start_attempt(session.token, MTN_NUMBER, MTN_MOMO)
+				try:
+					api.start_attempt(session.token, MTN_NUMBER, MTN_MOMO)
+				except frappe.ValidationError as refused:
+					# The payer reads that the method is unavailable: the keys or the settings need fixing.
+					self.assertIn("not available at the moment", str(refused))
 			alerts = frappe.get_all(
 				"Notification Log",
 				{"document_type": "Local Payment", "document_name": session.name},
 				pluck="subject",
 			)
-			return state["attempt_status"], alerts
+			status = frappe.db.get_value("Local Payment Attempt", {"parent": session.name}, "status")
+			return status, alerts
 
 		status, alerts = start(recorded("payin_below_minimum"))
 		self.assertEqual(status, lc.ERROR)
