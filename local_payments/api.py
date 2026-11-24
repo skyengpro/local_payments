@@ -276,7 +276,8 @@ def get_status(token: str) -> dict:
 @rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
 def mtn_momo_callback() -> None:
 	"""Queue a status check for a known attempt still in play. Every other call gets the same empty answer."""
-	_queue_status_check()
+	# Frappe builds form_dict from the JSON body alone when there is one, so read the query string.
+	_queue_status_check(frappe.request.args.get("attempt"))
 
 
 # Nokash signs its notifications with the integrator key. The signature only filters who may trigger a check:
@@ -295,7 +296,7 @@ def nokash_callback() -> None:
 		frappe.local.response["http_status_code"] = 401
 		return
 	if body.get("status") in CALLBACK_FINAL_STATUSES:
-		_queue_status_check()
+		_queue_status_check(attempt)
 
 
 def _nokash_signed(attempt, body) -> bool:
@@ -320,10 +321,8 @@ def _nokash_signed(attempt, body) -> bool:
 	)
 
 
-def _queue_status_check() -> None:
-	# Frappe builds form_dict from the JSON body alone when there is one, so read the query string.
-	attempt = frappe.request.args.get("attempt")
-	if not attempt or not ATTEMPT_ID_PATTERN.match(attempt):
+def _queue_status_check(attempt: str | None) -> None:
+	if not isinstance(attempt, str) or not ATTEMPT_ID_PATTERN.match(attempt):
 		return
 	status = frappe.db.get_value(
 		"Local Payment Attempt", {"attempt_id": attempt, "parenttype": "Local Payment"}, "status"
