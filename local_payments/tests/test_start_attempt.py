@@ -5,6 +5,7 @@ import json
 import uuid
 from datetime import timedelta
 from unittest.mock import patch
+from urllib.parse import urlencode
 
 import frappe
 from frappe.utils import add_to_date, get_datetime, now_datetime, set_request
@@ -465,6 +466,115 @@ class TestNokashCallback(CheckoutTestCase):
 		claims = {"id": "nk_tx_forged", "status": "SUCCESS", "amount": "5000", "orderId": attempt_id}
 
 		refused, enqueue = self.callback(attempt_id, claims)
+
+		self.assertIsNone(refused)
+		enqueue.assert_called_once()
+		self.assertEqual(frappe.db.get_value("Local Payment", session.name, "status"), "Open")
+		row = attempts(session)[0]
+		self.assertEqual((row.status, row.provider_transaction_id), (lc.PENDING, None))
+
+
+class TestCamPayCallback(CheckoutTestCase):
+	"""CamPay signs its webhook with a JWT: a call that can't be verified is refused, and nothing is queued."""
+
+	def callback(self, params, method="POST", gateway=None):
+		if method == "GET":
+			set_request(
+				method="GET",
+				path="/api/method/local_payments.api.campay_callback",
+				query_string=urlencode(params or {}),
+			)
+		else:
+			set_request(
+				method="POST",
+				path="/api/method/local_payments.api.campay_callback",
+				data=json.dumps(params) if params is not None else "",
+				content_type="application/json",
+			)
+		frappe.local.request_ip = "127.0.0.1"
+		frappe.local.response = frappe._dict()
+		gateway = gateway or FakeSigningGateway()
+		with (
+			patch.object(frappe, "enqueue") as enqueue,
+			patch.object(rc, "reconcile") as reconcile,
+			patch.object(api, "get_payment_gateway_controller", return_value=gateway),
+		):
+			answer = api.campay_callback()
+		# Never inside the request: reconcile() commits and asks the provider.
+		reconcile.assert_not_called()
+		self.assertIsNone(answer)
+		return frappe.local.response.get("http_status_code"), enqueue, gateway
+
+	def params(self, attempt_id, **extra):
+		return {
+			"status": "SUCCESSFUL",
+			"reference": "cp-ref-1",
+			"external_reference": attempt_id,
+			"signature": "a.b.c",
+			**extra,
+		}
+
+	def test_a_verified_call_for_a_running_attempt_queues_one_reconcile_by_get_or_post(self):
+		for method in ("GET", "POST"):
+			for status in (lc.INITIATED, lc.PENDING, lc.UNRESOLVED):
+				with self.subTest(method=method, status=status):
+					attempt_id = str(uuid.uuid4())
+					make_session(
+						{"attempt_id": attempt_id, "status": status, "provider_transaction_id": "cp-ref-1"}
+					)
+					params = self.params(attempt_id)
+
+					refused, enqueue, gateway = self.callback(params, method)
+
+					self.assertIsNone(refused)
+					enqueue.assert_called_once_with(
+						"local_payments.reconcile.reconcile",
+						attempt_id=attempt_id,
+						job_id=f"local_payments:reconcile:{attempt_id}",
+						deduplicate=True,
+					)
+					# The check gets what the call carried, and the reference the attempt holds.
+					self.assertEqual(gateway.calls, [(params, None, attempt_id, "cp-ref-1")])
+
+	def test_a_call_that_cannot_be_verified_is_refused_and_queues_nothing(self):
+		attempt_id = str(uuid.uuid4())
+		make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+		for method in ("GET", "POST"):
+			with self.subTest(method=method):
+				refused, enqueue, _ = self.callback(
+					self.params(attempt_id), method, FakeSigningGateway(genuine=False)
+				)
+				self.assertEqual(refused, 401)
+				enqueue.assert_not_called()
+
+	def test_an_unknown_or_malformed_attempt_gets_the_same_refusal_without_asking_the_gateway(self):
+		for attempt in (str(uuid.uuid4()), None, "", "not-an-attempt", UNKNOWN_TOKEN):
+			with self.subTest(attempt=attempt):
+				refused, enqueue, gateway = self.callback(self.params(attempt))
+				self.assertEqual(refused, 401)
+				enqueue.assert_not_called()
+				self.assertEqual(gateway.calls, [])
+
+	def test_a_body_that_is_not_a_json_object_is_refused(self):
+		for body in (None, [], ["SUCCESSFUL"], "SUCCESSFUL", 1):
+			with self.subTest(body=body):
+				refused, enqueue, gateway = self.callback(body)
+				self.assertEqual(refused, 401)
+				enqueue.assert_not_called()
+				self.assertEqual(gateway.calls, [])
+
+	def test_a_verified_call_about_a_settled_attempt_is_answered_and_ignored(self):
+		settled = str(uuid.uuid4())
+		make_session({"attempt_id": settled, "status": lc.SUCCEEDED})
+		refused, enqueue, _ = self.callback(self.params(settled))
+		self.assertIsNone(refused)
+		enqueue.assert_not_called()
+
+	def test_what_the_call_says_never_decides_the_payment(self):
+		attempt_id = str(uuid.uuid4())
+		session = make_session({"attempt_id": attempt_id, "status": lc.PENDING})
+
+		refused, enqueue, _ = self.callback(self.params(attempt_id, reference="cp-forged", amount="5000"))
 
 		self.assertIsNone(refused)
 		enqueue.assert_called_once()

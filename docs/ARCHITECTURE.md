@@ -3,8 +3,9 @@
 `local_payments` adds local mobile payment methods to `frappe/payments`
 gateways. MTN MoMo and Orange Money are the two gateways in the v1 scope,
 implemented in this order: MTN MoMo first, then Orange Money Local/USSD,
-once its merchant contract and technical documentation are available. Nokash,
-an aggregator, gives access to both operators through a single gateway. The
+once its merchant contract and technical documentation are available. Nokash
+and CamPay, two aggregators, each give access to both operators through a
+single gateway. The
 application installs and behaves the same way on any Frappe site: from one
 site to another, only the merchant credentials change. Any document or
 application that already accepts a `frappe/payments` gateway (ERPNext's
@@ -13,8 +14,9 @@ methods with no adaptation.
 
 Provider-specific detail is found in
 [`gateways/mtn-momo.md`](gateways/mtn-momo.md),
-[`gateways/orange-money.md`](gateways/orange-money.md) and
-[`gateways/nokash.md`](gateways/nokash.md).
+[`gateways/orange-money.md`](gateways/orange-money.md),
+[`gateways/nokash.md`](gateways/nokash.md) and
+[`gateways/campay.md`](gateways/campay.md).
 
 ## Scope
 
@@ -23,10 +25,11 @@ Provider-specific detail is found in
 | MTN MoMo Collection, RequestToPay operation: request sent to the payer's phone | Orange Money Web Payment (redirect, OTP)         |
 | Orange Money Local/USSD: same principle, request sent to the payer's phone     | Refunds, disbursements, recurring payments       |
 | Nokash payin: MTN MoMo and Orange Money through one aggregator, same principle | Choice between gateways by the payer on the page |
+| CamPay collect: MTN MoMo and Orange Money through one aggregator, same principle | CamPay payment links, withdrawals, temporary token |
 | Automatic finalization of ERPNext Payment Requests                             |                                                  |
 | Frappe v16                                                                    |                                                  |
 
-A gateway can offer several operators, as Nokash does. The payer then picks
+A gateway can offer several operators, as Nokash and CamPay do. The payer then picks
 one on the page. That choice stays inside the session's gateway, so it is not
 the choice between gateways excluded above.
 
@@ -71,7 +74,7 @@ flowchart LR
     end
 
     subgraph LP["local_payments"]
-        SET["MTN MoMo Settings<br/>Orange Money Settings<br/>Nokash Settings"]
+        SET["MTN MoMo Settings<br/>Orange Money Settings<br/>Nokash Settings<br/>CamPay Settings"]
         GW["gateway.py"]
         LPAY["Local Payment<br/>+ attempts"]
         PAGE["local_payment_checkout page"]
@@ -86,6 +89,7 @@ flowchart LR
     OM["Orange Money API"]
     MTN["MTN MoMo API"]
     NK["Nokash API"]
+    CP["CamPay API"]
     PAYER["Payer"]
 
     CONS -- "get_payment_url" --> CTRL --> PG --> SET --> GW
@@ -94,6 +98,7 @@ flowchart LR
     PAYER --> PAGE --> API
     MTN -. "callback" .-> API
     NK -. "callback" .-> API
+    CP -. "webhook" .-> API
     API --> REC
     SCH --> REC
     REC --> LC
@@ -101,6 +106,7 @@ flowchart LR
     PROV --> OM
     PROV --> MTN
     PROV --> NK
+    PROV --> CP
     REC -- "on_payment_authorized" --> CONS
     BR -. "doc_events" .-> PR
 ```
@@ -112,9 +118,10 @@ flowchart LR
 | `providers/mtn_momo.py`                  | MTN MoMo HTTP client: token, RequestToPay, status. Normalizes responses into`ProviderResult`.                                                                                                                               | no             |
 | `providers/orange_money.py`              | Orange Money HTTP client (Local/USSD): token, initiation, status. Normalizes responses into`ProviderResult`. Written after `providers/mtn_momo.py`, once the merchant contract and technical documentation are available. | no             |
 | `providers/nokash.py`                    | Nokash HTTP client: signed payin, status. Normalizes responses into`ProviderResult`.                                                                                                                                       | no             |
+| `providers/campay.py`                    | CamPay HTTP client: collect, status, webhook JWT check. Normalizes responses into`ProviderResult`.                                                                                                                         | no             |
 | `providers/common.py`, `providers/msisdn.py` | What the clients share: network log record, amount and status helpers, phone numbers.                                                                                                                                     | no             |
 | `lifecycle.py`                           | States and transitions for sessions and attempts, amount and currency checks, duplicate detection.                                                                                                                            | no             |
-| `gateway.py`                             | Implementation of the`frappe/payments` contract, inherited by the Settings doctypes.                                                                                                                                        | yes            |
+| `gateway.py`                             | Implementation of the`frappe/payments` contract, inherited by the Settings doctypes, and the operator choice shared by the aggregators (`OperatorChoice`).                                                                  | yes            |
 | `api.py`                                 | Guest endpoints: starting an attempt, status, callbacks.                                                                                                                                                                      | yes            |
 | `reconcile.py`                           | Queries the provider, applies the transition under lock, triggers authorization.                                                                                                                                              | yes            |
 | `erpnext.py`                             | Finalization of Payment Requests. Inactive without ERPNext.                                                                                                                                                                   | yes            |
@@ -132,10 +139,11 @@ Providers are ordinary `frappe/payments` gateways, selectable everywhere a
 gateway is already selectable. MTN MoMo, which works by pushing a request to
 the phone, sits behind a local page served by the application. Orange Money
 Local/USSD follows the same principle behind the same page, and so does
-Nokash, which adds the choice of operator to that page. Options ruled out and
+Nokash and CamPay, which add the choice of operator to that page. Options ruled out and
 consequences: [ADR 0001](decisions/0001-native-payments-contract.md),
 [ADR 0003](decisions/0003-nokash-aggregator.md),
-[ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md).
+[ADR 0004](decisions/0004-nokash-authenticated-status-and-signed-callback.md),
+[ADR 0005](decisions/0005-campay-aggregator.md).
 
 ### D2. `get_payment_url()` never contacts the provider
 
@@ -203,7 +211,7 @@ retry mechanism.
 
 ### D5. One settings document per merchant contract
 
-`MTN MoMo Settings`, `Nokash Settings`, and later `Orange Money Settings`, are
+`MTN MoMo Settings`, `Nokash Settings`, `CamPay Settings`, and later `Orange Money Settings`, are
 not Single doctypes. Each document represents one merchant contract, named by
 `gateway_name`. On save, it creates the `<Provider>-<gateway_name>` gateway,
 whose `gateway_controller` points back to it, then emits
@@ -285,6 +293,7 @@ core, so the content stays typed and testable.
 | `MTN MoMo Settings`                   | One MTN MoMo merchant contract. Fields:[mtn-momo.md](gateways/mtn-momo.md#configuration).                                                      |
 | `Orange Money Settings`               | One Orange Money merchant contract. Fields to be defined once the documentation is received — see[orange-money.md](gateways/orange-money.md). |
 | `Nokash Settings`                     | One Nokash merchant contract. Fields:[nokash.md](gateways/nokash.md#configuration).                                                            |
+| `CamPay Settings`                     | One CamPay application. Fields:[campay.md](gateways/campay.md#configuration).                                                                  |
 | `Local Payment`                       | A session: what a consumer asks to be paid, and its outcome.                                                                                  |
 | `Local Payment Attempt` (child table) | One attempt with the provider, its identifiers, and its latest status.                                                                        |
 
@@ -334,7 +343,7 @@ erDiagram
         Select status "Initiated, Pending, Succeeded, Failed, Expired, Unresolved, Error"
         Data provider_status "last raw status from the provider"
         Data payer_msisdn "payer's number"
-        Data provider_transaction_id "financialTransactionId for MTN, payin id for Nokash"
+        Data provider_transaction_id "financialTransactionId for MTN, payin id for Nokash, reference for CamPay"
         Currency confirmed_amount
         Data confirmed_currency
         Code provider_data "provider-specific fields, written by providers/"
@@ -349,7 +358,7 @@ erDiagram
         Data integration_request "name only"
     }
     PAYMENT_GATEWAY["Payment Gateway - frappe/payments"]
-    SETTINGS["MTN MoMo Settings / Orange Money Settings / Nokash Settings"]
+    SETTINGS["MTN MoMo Settings / Orange Money Settings / Nokash Settings / CamPay Settings"]
     PGA["Payment Gateway Account - ERPNext"]
 
     LOCAL_PAYMENT ||--o{ LOCAL_PAYMENT_ATTEMPT : attempts
@@ -359,14 +368,15 @@ erDiagram
 ```
 
 `attempt_id` is the identifier transmitted to the provider: `X-Reference-Id`
-for MTN MoMo, `order_id` for Nokash. It is generated by the application for
+for MTN MoMo, `order_id` for Nokash, `external_reference` for CamPay. It is generated by the application for
 each attempt. The format expected by Orange Money is still to be confirmed
 against its technical documentation. The `order_id` supplied by a consumer is
 a different value: it is kept in `request_data` and is never transmitted to
 the provider.
 
-`provider_transaction_id` is written by a success, except for Nokash, whose
-status query needs it: the id is recorded as soon as the payin answers.
+`provider_transaction_id` is written by a success, except for Nokash and
+CamPay, whose status query needs it: the id is recorded as soon as the payin
+or the collect answers.
 
 ## Lifecycle
 
@@ -408,8 +418,8 @@ returned a final state. The attempt keeps being queried at a decreasing
 frequency for 72 hours, after which an alert is sent to
 `Local Payments Manager`. A late success is still applied.
 
-An attempt the provider can never be asked about, such as a Nokash attempt
-whose payin answer was lost, stays open until the same deadline. It then moves
+An attempt the provider can never be asked about, such as a Nokash or CamPay
+attempt whose initiation answer was lost, stays open until the same deadline. It then moves
 to `Unresolved` and the managers are alerted at once. No query ever goes out
 for it.
 
@@ -479,12 +489,14 @@ payment. The PayPal and Razorpay gateways also populate
 | `local_payments.api.get_status(token)`                   | GET       | guest,`rate_limit`       | Triggers`reconcile()` if the minimum interval has elapsed. Returns the state and the exit URL.                   |
 | `local_payments.api.mtn_momo_callback?attempt=…`        | PUT, POST | guest,`rate_limit`       | Queues`reconcile()`, at most one job per attempt. Unknown or settled attempt: same empty answer, nothing queued. |
 | `local_payments.api.nokash_callback?attempt=…`          | POST      | guest,`rate_limit`       | Same as the MTN callback: queues`reconcile()`, and its body is never read. |
+| `local_payments.api.campay_callback`                    | GET, POST | guest,`rate_limit`       | Finds the attempt by `external_reference`, checks the JWT with the gateway's `webhook_key`, then queues `reconcile()`. 401 for anything it cannot verify. Its parameters never decide the outcome. |
 | `Local Payment` form: Retry authorization | button, POST | `Local Payments Manager`, System Manager | Runs the authorization of a `Paid` session again, when it is `Failed` or `Pending` for longer than 5 minutes. Answers at once if one is already running. The try counts like any other. |
 
 The entry point specific to Orange Money Local/USSD (callback or
 notification, form still unknown) will be added to this table once its
 documentation is received. Nokash sends its notification with production keys
-only, so polling alone must be able to settle a Nokash payment.
+only, so polling alone must be able to settle a Nokash payment. CamPay sends
+its webhook once, never again, so the same holds for CamPay.
 
 ## Scheduled tasks
 
@@ -518,15 +530,17 @@ next check sends it. The authorization one fires on any error
 except a lock, deadlock, concurrent edit or read-only database, which the backoff retries alone. It is sent
 once per session; the retries and the daily "failed N times" alert still follow.
 
-`start_attempt` raises one alert itself, once the attempt is saved: a Nokash payin refused by Nokash
-(`provider_refused`), which after the local checks points at the keys or the settings.
+`start_attempt` raises one alert itself, once the attempt is saved: a Nokash payin refused by Nokash,
+or a CamPay collect refused with 401 or 403 (`provider_refused`), which after the local checks points at
+the keys or the settings.
 
 ## Security and permissions
 
 - Merchant credentials are stored in `Password` fields, encrypted with the
   site's `encryption_key`. The Settings doctypes are restricted to System
   Manager. Nokash takes its keys in the request body: they are removed, with
-  the signature, from what is logged.
+  the signature, from what is logged. CamPay's token travels in the
+  `Authorization` header, which is never logged.
 - `Local Payments Manager`, a role created by the application, and System
   Manager can read, report on and export `Local Payment`, and retry an
   authorization. Neither can create, edit or delete a session. The role
@@ -568,6 +582,8 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - A currency other than XAF on a Nokash gateway, which has no currency to
   configure.
 - An amount below the `minimum_amount` of a Nokash gateway.
+- A currency other than XAF, or an amount outside `minimum_amount` and a
+  non-zero `maximum_amount`, on a CamPay gateway.
 - An attempt on a `Paid` or `Void` session, or through a disabled gateway,
   is rejected.
 - A new attempt is rejected as long as another one is `Initiated` or
@@ -582,8 +598,9 @@ once per session; the retries and the daily "failed N times" alert still follow.
 - A Payment Request that is not submitted is never marked paid: its
   authorization fails and is retried.
 - A change to a session outside the payment flow, by anyone.
-- An enabled Production MTN or Nokash gateway with callbacks on, when the
-  site's `host_name` is not an `https://` address.
+- An enabled Production MTN or Nokash gateway with callbacks on, or CamPay
+  gateway with a `webhook_key`, when the site's `host_name` is not an
+  `https://` address.
 
 ## Installation and configuration
 
@@ -592,7 +609,8 @@ depends on:
 
 - `host_name` in the site config holds the site's public `https://`
   address. MTN and Nokash call it back, and without it no callback is sent:
-  the outcome is then found by polling only.
+  the outcome is then found by polling only. CamPay's webhook address,
+  entered by hand in its dashboard, is built from it too.
 - `developer_mode` is off. In developer mode Frappe logs refused requests
   with their variables, the payer's number among them.
 - At least one person holds `Local Payments Manager`. Saving an enabled
@@ -634,6 +652,10 @@ Nothing else varies from one site to another.
   status query needs the id Nokash returned. The payer may have been charged,
   the managers are alerted, and support checks with Nokash. Meanwhile the
   payer's page keeps waiting and the consumer has to send a new link.
+- **A CamPay sandbox payment never ends `Paid`.** The sandbox reports
+  `0.00` for every transaction, so a success ends with `amount_mismatch`.
+  A full payment can only be checked in production
+  ([ADR 0005](decisions/0005-campay-aggregator.md)).
 - **Nokash confirms the amount only.** Its status answer has no currency: the
   client reports XAF, the only currency of the contract
   ([ADR 0003](decisions/0003-nokash-aggregator.md)).
@@ -656,7 +678,10 @@ Nothing else varies from one site to another.
   Orange Money work and items to obtain before implementation.
 - [`gateways/nokash.md`](gateways/nokash.md): Nokash payin contract and points
   to confirm before production.
+- [`gateways/campay.md`](gateways/campay.md): CamPay collect contract and
+  points to confirm before production.
 - [`decisions/0001-native-payments-contract.md`](decisions/0001-native-payments-contract.md)
 - [`decisions/0002-payment-request-authorization-hook.md`](decisions/0002-payment-request-authorization-hook.md)
 - [`decisions/0003-nokash-aggregator.md`](decisions/0003-nokash-aggregator.md)
 - [`decisions/0004-nokash-authenticated-status-and-signed-callback.md`](decisions/0004-nokash-authenticated-status-and-signed-callback.md)
+- [`decisions/0005-campay-aggregator.md`](decisions/0005-campay-aggregator.md)

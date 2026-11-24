@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Local Payments VERSION\n"
 "Report-Msgid-Bugs-To: ayonta.lontsi@skyengpro.com\n"
-"POT-Creation-Date: 2026-11-08 16:23+0000\n"
-"PO-Revision-Date: 2026-11-08 16:23+0000\n"
+"POT-Creation-Date: 2026-11-24 05:14+0000\n"
+"PO-Revision-Date: 2026-11-24 05:14+0000\n"
 "Last-Translator: ayonta.lontsi@skyengpro.com\n"
 "Language-Team: ayonta.lontsi@skyengpro.com\n"
 "MIME-Version: 1.0\n"
@@ -21,27 +21,29 @@ msgstr ""
 msgid "A Production gateway needs an https:// host_name to send callbacks."
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:128
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:135
 msgid "A Sandbox gateway must use {0}."
 msgstr ""
 
+#. Description of the 'Enabled' (Check) field in DocType 'CamPay Settings'
 #. Description of the 'Enabled' (Check) field in DocType 'MTN MoMo Settings'
 #. Description of the 'Enabled' (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "A disabled gateway refuses new payments."
 msgstr ""
 
-#: local_payments/erpnext.py:95
+#: local_payments/erpnext.py:85
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:101
 msgid "A payment for this request is being processed. Try again in a moment."
 msgstr ""
 
-#: local_payments/api.py:190
+#: local_payments/api.py:200
 msgid "A payment request is already waiting for your approval on your phone."
 msgstr ""
 
-#: local_payments/erpnext.py:99
+#: local_payments/erpnext.py:89
 msgid "A payment was received for this request and is not booked yet. Retry its authorization from {0} before cancelling."
 msgstr ""
 
@@ -51,14 +53,16 @@ msgstr ""
 msgid "API"
 msgstr ""
 
+#. Label of the api_base_url (Data) field in DocType 'CamPay Settings'
 #. Label of the api_base_url (Data) field in DocType 'MTN MoMo Settings'
 #. Label of the api_base_url (Data) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "API Base URL"
 msgstr ""
 
-#: local_payments/gateway.py:190
+#: local_payments/gateway.py:252
 msgid "API Base URL must be an https:// address."
 msgstr ""
 
@@ -72,18 +76,27 @@ msgstr ""
 msgid "API User"
 msgstr ""
 
+#. Label of the accept_mtn_momo (Check) field in DocType 'CamPay Settings'
 #. Label of the accept_mtn_momo (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Accept MTN MoMo"
 msgstr ""
 
+#. Label of the accept_orange_money (Check) field in DocType 'CamPay Settings'
 #. Label of the accept_orange_money (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Accept Orange Money"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:138
+#: local_payments/gateway.py:437
 msgid "Accept at least one operator."
+msgstr ""
+
+#. Label of the access_token (Password) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Access Token"
 msgstr ""
 
 #. Label of the alerted (Check) field in DocType 'Local Payment Attempt'
@@ -102,7 +115,7 @@ msgstr ""
 msgid "Amount Mismatch"
 msgstr ""
 
-#: local_payments/gateway.py:94
+#: local_payments/gateway.py:126
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:58
 msgid "Amount must be strictly positive."
 msgstr ""
@@ -113,7 +126,7 @@ msgstr ""
 msgid "Amount or currency does not match the session."
 msgstr ""
 
-#: local_payments/reconcile.py:427
+#: local_payments/reconcile.py:459
 msgid "Amount or currency mismatch on {0} (attempt {1}). The session stays open."
 msgstr ""
 
@@ -138,11 +151,11 @@ msgstr ""
 msgid "Attempt ID"
 msgstr ""
 
-#: local_payments/reconcile.py:434
+#: local_payments/reconcile.py:466
 msgid "Attempt {1} on {0} got no answer from the provider and cannot be checked. The payer may have been charged: ask the provider."
 msgstr ""
 
-#: local_payments/reconcile.py:428
+#: local_payments/reconcile.py:460
 msgid "Attempt {1} on {0} is unresolved after 72 hours. Ask the provider."
 msgstr ""
 
@@ -198,19 +211,35 @@ msgstr ""
 msgid "Authorization failed. See the error on the session."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:60
+#. Label of the api_section (Section Break) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "CamPay API"
+msgstr ""
+
+#. Name of a DocType
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "CamPay Settings"
+msgstr ""
+
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:173
+msgid "CamPay webhooks need an https:// address. Set host_name in the site config to the site's public https:// address, or clear the Webhook Key."
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:84
 msgid "Cancelled"
 msgstr ""
 
+#. Description of the 'Gateway Name' (Data) field in DocType 'CamPay Settings'
 #. Description of the 'Gateway Name' (Data) field in DocType 'MTN MoMo
 #. Settings'
 #. Description of the 'Gateway Name' (Data) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Cannot be changed once saved: the payment gateway is named after it."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html
+#: local_payments/templates/pages/local_payment_checkout.html:46
 msgid "Change operator"
 msgstr ""
 
@@ -219,8 +248,8 @@ msgstr ""
 msgid "Check Count"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:112
-#: local_payments/templates/pages/local_payment_checkout.html:26
+#: local_payments/gateway.py:426
+#: local_payments/templates/pages/local_payment_checkout.html:27
 msgid "Choose your mobile money operator."
 msgstr ""
 
@@ -254,7 +283,7 @@ msgstr ""
 msgid "Column Break Payer"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:50
+#: local_payments/templates/pages/local_payment_checkout.html:74
 msgid "Confirm the payment on your phone. This page updates on its own."
 msgstr ""
 
@@ -270,7 +299,7 @@ msgstr ""
 msgid "Confirmed Currency"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:58
+#: local_payments/templates/pages/local_payment_checkout.html:82
 msgid "Continue"
 msgstr ""
 
@@ -310,37 +339,38 @@ msgstr ""
 msgid "Duplicate"
 msgstr ""
 
-#: local_payments/reconcile.py:426
+#: local_payments/reconcile.py:458
 msgid "Duplicate payment on {0} (attempt {1}). Check whether a refund is due."
 msgstr ""
 
+#. Label of the enabled (Check) field in DocType 'CamPay Settings'
 #. Label of the enabled (Check) field in DocType 'Local Payments Test Settings'
 #. Label of the enabled (Check) field in DocType 'MTN MoMo Settings'
 #. Label of the enabled (Check) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Enabled"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:25
+#. Description of the 'Webhook URL' (Data) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Enter this address as the webhook in the CamPay dashboard, with GET or POST. Built from the site's host_name on save. The webhook only triggers a status check."
+msgstr ""
+
+#: local_payments/templates/pages/local_payment_checkout.html:41
 msgid "Enter your mobile money number."
 msgstr ""
 
-#: local_payments/gateway.py:146
+#: local_payments/gateway.py:185
 msgid "Enter your mobile money number: {0} digits, with or without +{1}."
 msgstr ""
 
-#: local_payments/gateway.py
-msgid "This is not an MTN number. Enter an MTN Mobile Money number."
-msgstr ""
-
-#: local_payments/gateway.py
-msgid "This is not an Orange number. Enter an Orange Money number."
-msgstr ""
-
+#. Label of the environment (Select) field in DocType 'CamPay Settings'
 #. Label of the environment (Select) field in DocType 'MTN MoMo Settings'
 #. Label of the environment (Select) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Environment"
@@ -368,17 +398,19 @@ msgstr ""
 msgid "Failed"
 msgstr ""
 
+#. Label of the gateway_name (Data) field in DocType 'CamPay Settings'
 #. Label of the gateway_name (Data) field in DocType 'Local Payments Test
 #. Settings'
 #. Label of the gateway_name (Data) field in DocType 'MTN MoMo Settings'
 #. Label of the gateway_name (Data) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Gateway Name"
 msgstr ""
 
-#: local_payments/gateway.py:179
+#: local_payments/gateway.py:241
 msgid "Gateway Name cannot be changed once saved."
 msgstr ""
 
@@ -387,10 +419,13 @@ msgstr ""
 msgid "Guest access key. Generated on insert."
 msgstr ""
 
+#. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType
+#. 'CamPay Settings'
 #. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType 'MTN
 #. MoMo Settings'
 #. Description of the 'Pending Timeout (Minutes)' (Int) field in DocType
 #. 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "How long a request may stay pending before the attempt is marked Unresolved."
@@ -407,6 +442,11 @@ msgstr ""
 msgid "Initiated"
 msgstr ""
 
+#. Label of the integration_key (Password) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Integration Key"
+msgstr ""
+
 #. Label of the integration_request (Data) field in DocType 'Local Payment
 #. Attempt'
 #: local_payments/local_payments/doctype/local_payment_attempt/local_payment_attempt.json
@@ -416,6 +456,11 @@ msgstr ""
 #. Label of the i_space_key (Password) field in DocType 'Nokash Settings'
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Integrator Key"
+msgstr ""
+
+#. Description of the 'Maximum Amount' (Int) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Largest amount in XAF a payment request can ask for. 0 means no limit. The CamPay sandbox refuses more than 100."
 msgstr ""
 
 #. Label of the last_checked_on (Datetime) field in DocType 'Local Payment
@@ -453,7 +498,7 @@ msgstr ""
 msgid "MSISDN National Length"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:134
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:141
 msgid "MSISDN National Length must be greater than zero."
 msgstr ""
 
@@ -465,7 +510,7 @@ msgstr ""
 msgid "MSISDN Prefix"
 msgstr ""
 
-#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:132
+#: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.py:139
 msgid "MSISDN Prefix must contain digits only, without + or 00."
 msgstr ""
 
@@ -474,7 +519,7 @@ msgstr ""
 msgid "MTN MoMo Settings"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:102
+#: local_payments/gateway.py:410
 msgid "MTN Mobile Money"
 msgstr ""
 
@@ -496,6 +541,19 @@ msgstr ""
 msgid "Managers have been told this attempt stayed unresolved. Keeps the daily alert to one."
 msgstr ""
 
+#. Label of the maximum_amount (Int) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Maximum Amount"
+msgstr ""
+
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:157
+msgid "Maximum Amount cannot be negative."
+msgstr ""
+
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:159
+msgid "Maximum Amount must be 0, for no limit, or at least the Minimum Amount."
+msgstr ""
+
 #. Description of the 'Payee Note' (Data) field in DocType 'MTN MoMo Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Merchant-side note. At most 160 characters."
@@ -512,21 +570,29 @@ msgstr ""
 msgid "Minimal Settings doctype used only by the tests of gateway.py. Not a real provider."
 msgstr ""
 
+#. Label of the minimum_amount (Int) field in DocType 'CamPay Settings'
 #. Label of the minimum_amount (Int) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Minimum Amount"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:144
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:153
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:138
 msgid "Minimum Amount cannot be negative."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:28
+#: local_payments/templates/pages/local_payment_checkout.html:57
 msgid "Mobile money number"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:35
+#: local_payments/templates/pages/local_payment_checkout.html:28
 msgid "Mobile money operator"
+msgstr ""
+
+#. Description of the 'API Base URL' (Data) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Must be an https:// address: the access token is sent to it."
 msgstr ""
 
 #. Description of the 'API Base URL' (Data) field in DocType 'Nokash Settings'
@@ -546,7 +612,7 @@ msgstr ""
 msgid "Next Check On"
 msgstr ""
 
-#: local_payments/gateway.py:204
+#: local_payments/gateway.py:266
 msgid "No active user has the {0} role. Payment alerts will go to System Managers, or to Administrator if there are none. Assign the role to at least one person."
 msgstr ""
 
@@ -558,6 +624,11 @@ msgstr ""
 #. Name of a DocType
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Nokash Settings"
+msgstr ""
+
+#. Description of a DocType
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "One CamPay application. Saving it creates the CamPay-<Gateway Name> payment gateway. Payments are in XAF only."
 msgstr ""
 
 #. Description of a DocType
@@ -575,7 +646,7 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:102
+#: local_payments/gateway.py:410
 msgid "Orange Money"
 msgstr ""
 
@@ -600,7 +671,7 @@ msgstr ""
 msgid "Paid On"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:46
+#: local_payments/templates/pages/local_payment_checkout.html:68
 msgid "Pay"
 msgstr ""
 
@@ -609,12 +680,15 @@ msgstr ""
 msgid "Payee Note"
 msgstr ""
 
+#. Label of the payer_section (Section Break) field in DocType 'CamPay
+#. Settings'
 #. Label of the section_break_payer (Section Break) field in DocType 'Local
 #. Payment'
 #. Label of the payer_section (Section Break) field in DocType 'MTN MoMo
 #. Settings'
 #. Label of the payer_section (Section Break) field in DocType 'Nokash
 #. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
@@ -646,32 +720,37 @@ msgstr ""
 msgid "Payment"
 msgstr ""
 
+#. Label of the payment_description (Data) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Payment Description"
+msgstr ""
+
 #. Label of the payment_gateway (Link) field in DocType 'Local Payment'
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 msgid "Payment Gateway"
 msgstr ""
 
-#: local_payments/erpnext.py:69
+#: local_payments/erpnext.py:59
 msgid "Payment Request {0} is not submitted, so it can't be marked as paid."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:20
+#: local_payments/templates/pages/local_payment_checkout.html:21
 msgid "Payment by {0}"
 msgstr ""
 
-#: local_payments/reconcile.py:432
+#: local_payments/reconcile.py:464
 msgid "Payment on {0} is received but its authorization failed {1} times."
 msgstr ""
 
-#: local_payments/reconcile.py:429
+#: local_payments/reconcile.py:461
 msgid "Payment on {0} is received but its authorization failed. Fix the cause shown on the session, then retry."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:57
+#: local_payments/templates/pages/local_payment_checkout.html:81
 msgid "Payment received"
 msgstr ""
 
-#: local_payments/reconcile.py:433
+#: local_payments/reconcile.py:465
 msgid "Payment received on {0} (attempt {1}) after it was cancelled. Handle it manually."
 msgstr ""
 
@@ -682,24 +761,29 @@ msgstr ""
 msgid "Pending"
 msgstr ""
 
+#. Label of the pending_timeout_minutes (Int) field in DocType 'CamPay
+#. Settings'
 #. Label of the pending_timeout_minutes (Int) field in DocType 'Local Payments
 #. Test Settings'
 #. Label of the pending_timeout_minutes (Int) field in DocType 'MTN MoMo
 #. Settings'
 #. Label of the pending_timeout_minutes (Int) field in DocType 'Nokash
 #. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Pending Timeout (Minutes)"
 msgstr ""
 
-#: local_payments/gateway.py:196
+#: local_payments/gateway.py:258
 msgid "Pending Timeout (Minutes) cannot be negative."
 msgstr ""
 
+#. Option for the 'Environment' (Select) field in DocType 'CamPay Settings'
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
 #. Option for the 'Environment' (Select) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Production"
@@ -731,7 +815,8 @@ msgstr ""
 msgid "Provider-specific fields, written by providers/ only."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html
+#: local_payments/templates/pages/local_payment_checkout.html:61
+#: local_payments/templates/pages/local_payment_checkout.html:62
 msgid "Recent numbers"
 msgstr ""
 
@@ -762,12 +847,14 @@ msgstr ""
 msgid "Retry authorization"
 msgstr ""
 
-#: local_payments/gateway.py:207
+#: local_payments/gateway.py:269
 msgid "Role not assigned"
 msgstr ""
 
+#. Option for the 'Environment' (Select) field in DocType 'CamPay Settings'
 #. Option for the 'Environment' (Select) field in DocType 'MTN MoMo Settings'
 #. Option for the 'Environment' (Select) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Sandbox"
@@ -780,7 +867,7 @@ msgstr ""
 msgid "Send Callback"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html
+#: local_payments/templates/pages/local_payment_checkout.html:42
 msgid "Sending..."
 msgstr ""
 
@@ -794,6 +881,18 @@ msgstr ""
 #. Settings'
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
 msgid "Sent as X-Target-Environment. In production, the value provided by MTN."
+msgstr ""
+
+#. Description of the 'Integration Key' (Password) field in DocType 'Nokash
+#. Settings'
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
+msgid "Sent as the X-NK-Integration header. Nokash gives it for the integration phase and refuses every call without it; leave it empty once the contract is recognised by its address instead."
+msgstr ""
+
+#. Description of the 'Payment Description' (Data) field in DocType 'CamPay
+#. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Sent to CamPay and shown to the payer. {title} is replaced by the payment's title. Never put a phone number or personal data in it."
 msgstr ""
 
 #. Description of the 'Integrator Key' (Password) field in DocType 'Nokash
@@ -812,7 +911,9 @@ msgstr ""
 msgid "Shown to the payer. At most 160 characters."
 msgstr ""
 
+#. Description of the 'Minimum Amount' (Int) field in DocType 'CamPay Settings'
 #. Description of the 'Minimum Amount' (Int) field in DocType 'Nokash Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "Smallest amount in XAF a payment request can ask for."
 msgstr ""
@@ -851,7 +952,13 @@ msgstr ""
 msgid "Success on an already-paid session."
 msgstr ""
 
+#. Description of the 'Environment' (Select) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Switching it moves the API Base URL to the other CamPay address while it still holds a default one. A Production gateway with a webhook key needs an https:// host_name."
+msgstr ""
+
 #. Name of a role
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/local_payment/local_payment.json
 #: local_payments/local_payments/doctype/local_payments_test_settings/local_payments_test_settings.json
 #: local_payments/local_payments/doctype/mtn_momo_settings/mtn_momo_settings.json
@@ -864,7 +971,24 @@ msgstr ""
 msgid "Target Environment"
 msgstr ""
 
-#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:54
+#. Description of the 'Webhook Key' (Password) field in DocType 'CamPay
+#. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "The App Webhook Key, from API ACCESS KEYS. Leave it empty to refuse every webhook call: status checks still settle payments."
+msgstr ""
+
+#. Description of the 'Access Token' (Password) field in DocType 'CamPay
+#. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "The application's Permanent Access Token, from API ACCESS KEYS in the CamPay dashboard."
+msgstr ""
+
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:56
+msgid "The maximum amount for this payment method is {0} {1}."
+msgstr ""
+
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.py:50
+#: local_payments/local_payments/doctype/nokash_settings/nokash_settings.py:50
 msgid "The minimum amount for this payment method is {0} {1}."
 msgstr ""
 
@@ -873,35 +997,43 @@ msgstr ""
 msgid "The only currency this gateway accepts."
 msgstr ""
 
-#: local_payments/gateway.py:274
+#: local_payments/gateway.py:346
 msgid "The payment gateway {0} is disabled."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:24
+#: local_payments/templates/pages/local_payment_checkout.html:40
 msgid "The payment service is not responding at the moment. Please try again in a few minutes."
 msgstr ""
 
-#: local_payments/reconcile.py
+#: local_payments/reconcile.py:469
 msgid "The provider refused attempt {1} on {0}. Check the gateway's keys and settings."
 msgstr ""
 
-#: local_payments/api.py:217
+#: local_payments/gateway.py:208
+msgid "This is not an MTN number. Enter an MTN Mobile Money number."
+msgstr ""
+
+#: local_payments/gateway.py:210
+msgid "This is not an Orange number. Enter an Orange Money number."
+msgstr ""
+
+#: local_payments/api.py:227
 msgid "This payment can no longer be made from this page."
 msgstr ""
 
-#: local_payments/api.py:153
+#: local_payments/api.py:159
 msgid "This payment method is not available at the moment."
 msgstr ""
 
-#: local_payments/gateway.py:263
+#: local_payments/gateway.py:335
 msgid "This payment method only accepts {0}, not {1}. Please select another payment method."
 msgstr ""
 
-#: local_payments/api.py:315
+#: local_payments/api.py:374
 msgid "This payment page is no longer available."
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:61
+#: local_payments/templates/pages/local_payment_checkout.html:85
 msgid "This payment request was cancelled. Ask the sender for a new link."
 msgstr ""
 
@@ -931,8 +1063,18 @@ msgstr ""
 msgid "Void"
 msgstr ""
 
-#: local_payments/templates/pages/local_payment_checkout.html:54
+#: local_payments/templates/pages/local_payment_checkout.html:78
 msgid "We are still waiting for an answer. Reload this page to check again."
+msgstr ""
+
+#. Label of the webhook_key (Password) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Webhook Key"
+msgstr ""
+
+#. Label of the webhook_url (Data) field in DocType 'CamPay Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
+msgid "Webhook URL"
 msgstr ""
 
 #. Description of the 'Authorization Next Retry On' (Datetime) field in DocType
@@ -941,24 +1083,28 @@ msgstr ""
 msgid "When the scheduler may retry the authorization. Set by reconcile()."
 msgstr ""
 
+#. Description of the 'Accept MTN MoMo' (Check) field in DocType 'CamPay
+#. Settings'
 #. Description of the 'Accept MTN MoMo' (Check) field in DocType 'Nokash
 #. Settings'
+#: local_payments/local_payments/doctype/campay_settings/campay_settings.json
 #: local_payments/local_payments/doctype/nokash_settings/nokash_settings.json
 msgid "With both operators checked, the payer chooses on the payment page."
 msgstr ""
 
-#: local_payments/api.py:144
+#: local_payments/api.py:150
 msgid "Your payment could not be started. Please try again in a moment."
 msgstr ""
 
-#: local_payments/gateway.py:170
+#: local_payments/gateway.py:232
 msgid "{0} callbacks need an https:// address. Set host_name in the site config to the site's public https:// address, or uncheck Send Callback."
 msgstr ""
 
-#: local_payments/gateway.py:96
+#: local_payments/gateway.py:128
 msgid "{0} has no minor unit, so the amount must be a whole number."
 msgstr ""
 
 #: local_payments/local_payments/doctype/local_payment/local_payment.py:83
 msgid "{0} is set by the payment flow and cannot be edited."
 msgstr ""
+

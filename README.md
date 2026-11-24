@@ -14,6 +14,7 @@ Any document that already accepts a `frappe/payments` gateway can use these gate
 | MTN MoMo (Collection, RequestToPay) | Implemented and tested against the MTN sandbox                    |
 | Orange Money (Local/USSD)           | Waiting for the merchant contract and its technical documentation |
 | Nokash (MTN MoMo and Orange Money)  | Implemented from its sandbox specification, not yet run against Nokash |
+| CamPay (MTN MoMo and Orange Money)  | Implemented from sandbox calls; a full payment needs a real production run |
 
 Refunds, disbursements and recurring payments are out of scope.
 
@@ -26,6 +27,7 @@ Refunds, disbursements and recurring payments are out of scope.
 - An MTN MoMo merchant account for the Collection product: subscription key, API user and API key.
   MTN provides the production base URL and target environment at go-live.
 - For Nokash, an integrator key and an app key. Payments are in XAF only.
+- For CamPay, an application's permanent access token and webhook key. Payments are in XAF only.
 - For production, a public domain served over HTTPS with a certificate from a public authority. MTN
   only calls back `https://` addresses.
 
@@ -53,18 +55,20 @@ bench --site <site> install-app payments local_payments
 3. Create one `MTN MoMo Settings` document per merchant contract. Saving it creates the
    `MTN MoMo-<name>` payment gateway. Every field is described in
    [docs/gateways/mtn-momo.md](docs/gateways/mtn-momo.md#configuration). `Nokash Settings` works the
-   same way, with its fields in [docs/gateways/nokash.md](docs/gateways/nokash.md#configuration).
+   same way, with its fields in [docs/gateways/nokash.md](docs/gateways/nokash.md#configuration), and
+   so does `CamPay Settings`, in [docs/gateways/campay.md](docs/gateways/campay.md#configuration).
 4. On an ERPNext site, when a gateway is enabled, ERPNext creates a `Payment Gateway Account` for the default
    company. Check that it points to a Bank or Cash ledger account in the gateway's currency, and create
    one for every other company that takes payments.
 5. In production, register the site's host as the callback host in the MTN merchant
-   portal.
+   portal, and copy a CamPay gateway's `Webhook URL` into its CamPay dashboard.
 
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md): components, payment lifecycle, security, design decisions.
-- [MTN MoMo](docs/gateways/mtn-momo.md), [Orange Money](docs/gateways/orange-money.md) and
-  [Nokash](docs/gateways/nokash.md): provider contracts and settings.
+- [MTN MoMo](docs/gateways/mtn-momo.md), [Orange Money](docs/gateways/orange-money.md),
+  [Nokash](docs/gateways/nokash.md) and [CamPay](docs/gateways/campay.md): provider contracts and
+  settings.
 - [Decision records](docs/decisions/).
 
 ## Contributing

@@ -33,6 +33,7 @@ from local_payments.providers.common import (
 )
 from local_payments.providers.msisdn import normalize_msisdn
 
+BASE_URLS = {"Sandbox": "https://demo.campay.net/api", "Production": "https://www.campay.net/api"}
 COLLECT_PATH = "/collect/"
 STATUS_PATH = "/transaction/{reference}/"
 
@@ -179,9 +180,8 @@ class CamPayClient:
 			raise CamPayError(response.status_code, str(unreadable) or None) from None
 
 	def _headers(self) -> dict:
-		# Frappe masks traceback variables whose name contains "secret", so this never reaches a log.
-		authorization_secret = f"Token {self.config.access_token}"
-		return {"Authorization": authorization_secret}
+		# Built inline at each call, so no frame of collect or check_status holds the token in a local a traceback could show.
+		return {"Authorization": f"Token {self.config.access_token}"}
 
 	def _report(self, exchange: Exchange) -> None:
 		if self.on_exchange:

@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "field:gateway_name",
+ "creation": "2026-11-24 00:00:00.000000",
+ "description": "One CamPay application. Saving it creates the CamPay-<Gateway Name> payment gateway. Payments are in XAF only.",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "gateway_name",
+  "enabled",
+  "environment",
+  "api_section",
+  "api_base_url",
+  "access_token",
+  "column_break_api",
+  "webhook_key",
+  "webhook_url",
+  "payer_section",
+  "accept_mtn_momo",
+  "accept_orange_money",
+  "payment_description",
+  "column_break_payer",
+  "pending_timeout_minutes",
+  "minimum_amount",
+  "maximum_amount"
+ ],
+ "fields": [
+  {
+   "description": "Cannot be changed once saved: the payment gateway is named after it.",
+   "fieldname": "gateway_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Gateway Name",
+   "reqd": 1,
+   "set_only_once": 1,
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "A disabled gateway refuses new payments.",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Enabled"
+  },
+  {
+   "default": "Sandbox",
+   "description": "Switching it moves the API Base URL to the other CamPay address while it still holds a default one. A Production gateway with a webhook key needs an https:// host_name.",
+   "fieldname": "environment",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Environment",
+   "options": "Sandbox\nProduction",
+   "reqd": 1
+  },
+  {
+   "fieldname": "api_section",
+   "fieldtype": "Section Break",
+   "label": "CamPay API"
+  },
+  {
+   "default": "https://demo.campay.net/api",
+   "description": "Must be an https:// address: the access token is sent to it.",
+   "fieldname": "api_base_url",
+   "fieldtype": "Data",
+   "label": "API Base URL",
+   "reqd": 1
+  },
+  {
+   "description": "The application's Permanent Access Token, from API ACCESS KEYS in the CamPay dashboard.",
+   "fieldname": "access_token",
+   "fieldtype": "Password",
+   "label": "Access Token",
+   "length": 200,
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_api",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "The App Webhook Key, from API ACCESS KEYS. Leave it empty to refuse every webhook call: status checks still settle payments.",
+   "fieldname": "webhook_key",
+   "fieldtype": "Password",
+   "label": "Webhook Key",
+   "length": 200
+  },
+  {
+   "description": "Enter this address as the webhook in the CamPay dashboard, with GET or POST. Built from the site's host_name on save. The webhook only triggers a status check.",
+   "fieldname": "webhook_url",
+   "fieldtype": "Data",
+   "label": "Webhook URL",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payer_section",
+   "fieldtype": "Section Break",
+   "label": "Payer"
+  },
+  {
+   "default": "1",
+   "description": "With both operators checked, the payer chooses on the payment page.",
+   "fieldname": "accept_mtn_momo",
+   "fieldtype": "Check",
+   "label": "Accept MTN MoMo"
+  },
+  {
+   "default": "1",
+   "fieldname": "accept_orange_money",
+   "fieldtype": "Check",
+   "label": "Accept Orange Money"
+  },
+  {
+   "default": "{title}",
+   "description": "Sent to CamPay and shown to the payer. {title} is replaced by the payment's title. Never put a phone number or personal data in it.",
+   "fieldname": "payment_description",
+   "fieldtype": "Data",
+   "label": "Payment Description"
+  },
+  {
+   "fieldname": "column_break_payer",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "15",
+   "description": "How long a request may stay pending before the attempt is marked Unresolved.",
+   "fieldname": "pending_timeout_minutes",
+   "fieldtype": "Int",
+   "label": "Pending Timeout (Minutes)"
+  },
+  {
+   "default": "1",
+   "description": "Smallest amount in XAF a payment request can ask for.",
+   "fieldname": "minimum_amount",
+   "fieldtype": "Int",
+   "label": "Minimum Amount"
+  },
+  {
+   "default": "0",
+   "description": "Largest amount in XAF a payment request can ask for. 0 means no limit. The CamPay sandbox refuses more than 100.",
+   "fieldname": "maximum_amount",
+   "fieldtype": "Int",
+   "label": "Maximum Amount"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-11-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Local Payments",
+ "name": "CamPay Settings",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

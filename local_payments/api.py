@@ -66,7 +66,7 @@ STARTS_PER_ADDRESS = 30
 # the per-address budget is wide.
 CALLBACKS_PER_ADDRESS = 600
 
-# attempt_id is a UUID v4, sent to MTN as X-Reference-Id and to Nokash as order_id.
+# attempt_id is a UUID v4, sent to MTN as X-Reference-Id, to Nokash as order_id, to CamPay as external_reference.
 ATTEMPT_ID_PATTERN = re.compile(r"\A[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\Z")
 
 
@@ -292,15 +292,35 @@ def nokash_callback() -> None:
 	"""
 	attempt = frappe.request.args.get("attempt")
 	body = frappe.request.get_json(silent=True)
-	if not _nokash_signed(attempt, body):
+	if not _callback_verified(attempt, body, frappe.get_request_header("hmac-signature")):
 		frappe.local.response["http_status_code"] = 401
 		return
 	if body.get("status") in CALLBACK_FINAL_STATUSES:
 		_queue_status_check(attempt)
 
 
-def _nokash_signed(attempt, body) -> bool:
-	"""True when Nokash's signature covers this notification, and it is about this attempt."""
+# CamPay signs its webhook with a token that names no transaction, so it only filters who may trigger a check.
+# The parameters next to it are never read for the outcome. GET or POST, as set in CamPay's dashboard.
+@frappe.whitelist(allow_guest=True, methods=["GET", "POST"])  # nosemgrep: guest-whitelisted-method
+@rate_limit(limit=CALLBACKS_PER_ADDRESS, seconds=60)
+def campay_callback() -> None:
+	"""Queue a status check for a known attempt, when CamPay signed the call.
+
+	401 for anything that can't be verified, an unknown attempt included, so the answer tells a caller nothing.
+	"""
+	if frappe.request.method == "GET":
+		params = frappe.request.args.to_dict()
+	else:
+		params = frappe.request.get_json(silent=True)
+	attempt = params.get("external_reference") if isinstance(params, dict) else None
+	if not _callback_verified(attempt, params, None):
+		frappe.local.response["http_status_code"] = 401
+		return
+	_queue_status_check(attempt)
+
+
+def _callback_verified(attempt, body, header: str | None) -> bool:
+	"""True when the attempt's own gateway vouches for this call, and it is about this attempt."""
 	if not isinstance(attempt, str) or not ATTEMPT_ID_PATTERN.match(attempt) or not isinstance(body, dict):
 		return False
 	row = frappe.db.get_value(
@@ -315,10 +335,7 @@ def _nokash_signed(attempt, body) -> bool:
 		frappe.db.get_value("Local Payment", row.parent, "payment_gateway")
 	)
 	verify = getattr(gateway, "verify_callback", None)
-	return bool(
-		verify
-		and verify(body, frappe.get_request_header("hmac-signature"), attempt, row.provider_transaction_id)
-	)
+	return bool(verify and verify(body, header, attempt, row.provider_transaction_id))
 
 
 def _queue_status_check(attempt: str | None) -> None:
